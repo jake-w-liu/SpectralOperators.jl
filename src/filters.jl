@@ -33,7 +33,7 @@ function exp_filter!(
     α::Real = 36,
     p::Integer = 8,
 ) where {T,D}
-    size(field) == g.n || throw(DimensionMismatch("field size $(size(field)) ≠ grid $(g.n)"))
+    _require_grid_array(:field, field, g)
     p >= 1 || throw(ArgumentError("p must be ≥ 1"))
     α >= 0 || throw(ArgumentError("α must be ≥ 0"))
     αT = T(α)
@@ -76,7 +76,7 @@ retained band. The `k = 0` mean is preserved (it is well below the cutoff).
 Returns `field`.
 """
 function dealias_two_thirds!(field::AbstractArray{T,D}, g::FourierGrid{D,T}) where {T,D}
-    size(field) == g.n || throw(DimensionMismatch("field size $(size(field)) ≠ grid $(g.n)"))
+    _require_grid_array(:field, field, g)
     cuts = ntuple(d -> T(2) / T(3) * _kmax_axis(g.n[d], g.L[d]), D)
     g.cbuf .= field
     g.plan * g.cbuf

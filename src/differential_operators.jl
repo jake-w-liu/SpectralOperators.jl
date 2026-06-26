@@ -53,8 +53,8 @@ function deriv!(
     j::Int,
 ) where {D,T}
     1 <= j <= D || throw(ArgumentError("axis $j out of range 1:$D"))
-    size(f) == g.n || throw(DimensionMismatch("input size $(size(f)) does not match grid size $(g.n)"))
-    size(out) == g.n || throw(DimensionMismatch("output size $(size(out)) does not match grid size $(g.n)"))
+    _require_grid_array(:input, f, g)
+    _require_grid_array(:output, out, g)
     g.cbuf .= f
     g.plan * g.cbuf
     _apply_ik_store!(g.tbuf, g.cbuf, g.ik[j], j)
@@ -72,14 +72,13 @@ deriv(f::AbstractArray{T,D}, g::FourierGrid{D,T}, j::Int) where {D,T} = deriv!(s
 Gradient of scalar field `f`; `out[j]` receives ∂_j f. One forward FFT, D inverses.
 """
 function gradient!(
-    out::NTuple{D,<:AbstractArray{T,D}},
+    out::Tuple{Vararg{AbstractArray{T,D},D}},
     f::AbstractArray{T,D},
     g::FourierGrid{D,T},
 ) where {D,T}
-    size(f) == g.n || throw(DimensionMismatch("input size $(size(f)) does not match grid size $(g.n)"))
+    _require_grid_array(:input, f, g)
     for j = 1:D
-        size(out[j]) == g.n ||
-            throw(DimensionMismatch("output component $j size $(size(out[j])) does not match grid size $(g.n)"))
+        _require_grid_array(:output, j, out[j], g)
     end
     for j = 1:D-1, k = j+1:D
         Base.mightalias(out[j], out[k]) &&
@@ -103,10 +102,9 @@ components are used, so a 3-component velocity field works in any dimension.
 """
 function divergence!(out::AbstractArray{T,D}, v, g::FourierGrid{D,T}) where {D,T}
     length(v) >= D || throw(ArgumentError("divergence! needs at least $D vector components"))
-    size(out) == g.n || throw(DimensionMismatch("output size $(size(out)) does not match grid size $(g.n)"))
+    _require_grid_array(:output, out, g)
     for j = 1:D
-        size(v[j]) == g.n ||
-            throw(DimensionMismatch("input component $j size $(size(v[j])) does not match grid size $(g.n)"))
+        _require_grid_array(:input, j, v[j], g)
     end
     fill!(g.abuf, zero(Complex{T}))
     for j = 1:D
@@ -125,15 +123,13 @@ spatial axes (derivatives along absent axes are zero — the standard reduced cu
 for 1D/2D). `out` must be distinct from `A`.
 """
 function curl!(
-    out::NTuple{3,<:AbstractArray{T,D}},
-    A::NTuple{3,<:AbstractArray{T,D}},
+    out::Tuple{Vararg{AbstractArray{T,D},3}},
+    A::Tuple{Vararg{AbstractArray{T,D},3}},
     g::FourierGrid{D,T},
 ) where {D,T}
     for c = 1:3
-        size(out[c]) == g.n ||
-            throw(DimensionMismatch("output component $c size $(size(out[c])) does not match grid size $(g.n)"))
-        size(A[c]) == g.n ||
-            throw(DimensionMismatch("input component $c size $(size(A[c])) does not match grid size $(g.n)"))
+        _require_grid_array(:output, c, out[c], g)
+        _require_grid_array(:input, c, A[c], g)
     end
     for c = 1:2, d = c+1:3
         Base.mightalias(out[c], out[d]) &&
@@ -173,8 +169,8 @@ Spectral Laplacian ∇²f = −|k|² f̂ (periodic). Used for hyperresistivity a
 diffusion terms.
 """
 function laplacian!(out::AbstractArray{T,D}, f::AbstractArray{T,D}, g::FourierGrid{D,T}) where {D,T}
-    size(f) == g.n || throw(DimensionMismatch("input size $(size(f)) does not match grid size $(g.n)"))
-    size(out) == g.n || throw(DimensionMismatch("output size $(size(out)) does not match grid size $(g.n)"))
+    _require_grid_array(:input, f, g)
+    _require_grid_array(:output, out, g)
     g.cbuf .= f
     g.plan * g.cbuf
     @inbounds for I in CartesianIndices(g.cbuf)

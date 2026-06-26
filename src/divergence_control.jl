@@ -7,10 +7,9 @@ Project a 3-component field onto its divergence-free part in place:
 B̂ ← (I − k kᵀ/k²) B̂ for k≠0, leaving the k=0 mean untouched. After projection
 the discrete divergence (same wavenumbers) is zero to roundoff.
 """
-function project_divfree!(B::NTuple{3,<:AbstractArray{T,D}}, g::FourierGrid{D,T}) where {D,T}
+function project_divfree!(B::Tuple{Vararg{AbstractArray{T,D},3}}, g::FourierGrid{D,T}) where {D,T}
     for c = 1:3
-        size(B[c]) == g.n ||
-            throw(DimensionMismatch("component $c size $(size(B[c])) does not match grid size $(g.n)"))
+        _require_grid_array(:component, c, B[c], g)
     end
     for c = 1:2, d = c+1:3
         Base.mightalias(B[c], B[d]) &&

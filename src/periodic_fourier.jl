@@ -61,5 +61,21 @@ function FourierGrid(n::Tuple{Int,Vararg{Int}}, L::Tuple{T,Vararg{T}}) where {T<
     FourierGrid{D,T,typeof(plan),typeof(iplan)}(n, L, dx, ik, kvec, plan, iplan, cbuf, tbuf, abuf)
 end
 
+@inline function _require_grid_array(name::Symbol, a::AbstractArray, g::FourierGrid)
+    size(a) == g.n ||
+        throw(DimensionMismatch("$(name) size $(size(a)) does not match grid size $(g.n)"))
+    axes(a) == axes(g.cbuf) ||
+        throw(DimensionMismatch("$(name) axes $(axes(a)) must be one-based axes $(axes(g.cbuf))"))
+    return nothing
+end
+
+@inline function _require_grid_array(name::Symbol, c::Int, a::AbstractArray, g::FourierGrid)
+    size(a) == g.n ||
+        throw(DimensionMismatch("$(name)[$c] size $(size(a)) does not match grid size $(g.n)"))
+    axes(a) == axes(g.cbuf) ||
+        throw(DimensionMismatch("$(name)[$c] axes $(axes(a)) must be one-based axes $(axes(g.cbuf))"))
+    return nothing
+end
+
 # dst[I] = f̂[I] * (i k_j)   — apply the axis-j first-derivative multiplier.
 # Explicit Cartesian loop (no reshape) so it is allocation-free for runtime j.
