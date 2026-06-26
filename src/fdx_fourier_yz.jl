@@ -19,6 +19,7 @@ end
 
 function SBP1D(n::Integer, L::T) where {T<:AbstractFloat}
     n >= 3 || throw(ArgumentError("SBP needs at least 3 nodes"))
+    L > 0 || throw(ArgumentError("SBP domain length must be positive"))
     dx = L / (n - 1)
     H = fill(dx, n)
     H[1] = dx / 2

@@ -183,6 +183,10 @@ end
     f = randn(T, g.n...)
     out = similar(f)
 
+    @test_throws ArgumentError FourierGrid((0,), (T(1),))
+    @test_throws ArgumentError FourierGrid((8,), (zero(T),))
+    @test_throws DimensionMismatch FourierGrid((8, 8), (T(1),))
+    @test_throws DimensionMismatch FourierGrid((8,), (T(1), T(1)))
     @test_throws ArgumentError deriv!(out, f, g, 3)
     @test_throws DimensionMismatch deriv!(zeros(T, 7, 8), f, g, 1)
     @test_throws DimensionMismatch gradient!((zeros(T, 7, 8), similar(f)), f, g)
@@ -202,6 +206,9 @@ end
     @test_throws ArgumentError project_divfree!((P[1], P[1], P[3]), g)
     @test_throws DimensionMismatch project_divfree!((zeros(T, 7, 8), P[2], P[3]), g)
 
+    @test_throws ArgumentError SBP1D(2, T(1))
+    @test_throws ArgumentError SBP1D(4, zero(T))
+    @test_throws ArgumentError SBP1D(4, -one(T))
     s = SBP1D(4, T(1))
     @test_throws DimensionMismatch sbp_deriv!(zeros(T, 3), zeros(T, 4), s)
     @test_throws DimensionMismatch sbp_deriv!(zeros(T, 4), zeros(T, 3), s)

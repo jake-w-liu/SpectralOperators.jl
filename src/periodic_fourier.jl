@@ -34,7 +34,9 @@ struct FourierGrid{D,T,P,PI}
     abuf::Array{Complex{T},D}          # complex accumulator
 end
 
-function FourierGrid(n::NTuple{D,Int}, L::NTuple{D,T}) where {D,T<:AbstractFloat}
+function FourierGrid(n::Tuple{Int,Vararg{Int}}, L::Tuple{T,Vararg{T}}) where {T<:AbstractFloat}
+    D = length(n)
+    length(L) == D || throw(DimensionMismatch("domain length tuple has length $(length(L)); expected $D"))
     all(>(0), n) || throw(ArgumentError("grid sizes must be positive"))
     all(>(0), L) || throw(ArgumentError("domain lengths must be positive"))
     dx = ntuple(d -> L[d] / n[d], D)
