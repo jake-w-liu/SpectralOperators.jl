@@ -103,6 +103,7 @@ small primes 2, 3, 5 and 7 (the radices FFTW handles most efficiently). For
 """
 function fft_friendly_size(n::Integer)
     n <= 1 && return 1
+    n <= typemax(Int) || throw(OverflowError("no Int fft-friendly size can be >= $n"))
     is7smooth(m::Int) = begin
         for p in (2, 3, 5, 7)
             while m % p == 0
@@ -113,6 +114,7 @@ function fft_friendly_size(n::Integer)
     end
     c = Int(n)
     while !is7smooth(c)
+        c == typemax(Int) && throw(OverflowError("no Int fft-friendly size can be >= $n"))
         c += 1
     end
     return c

@@ -146,6 +146,8 @@ end
     @test fft_friendly_size(1) == 1
     @test fft_friendly_size(0) == 1
     @test fft_friendly_size(2) == 2
+    @test_throws OverflowError fft_friendly_size(typemax(Int))
+    @test_throws OverflowError fft_friendly_size(big(typemax(Int)) + 1)
     # Exhaustive property check: result ≥ n, 7-smooth, and minimal.
     for n = 1:2000
         r = fft_friendly_size(n)
