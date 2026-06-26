@@ -27,12 +27,25 @@ function SBP1D(n::Integer, L::T) where {T<:AbstractFloat}
     return SBP1D{T}(n, dx, H)
 end
 
+function _check_sbp_axis(name::Symbol, ax, n::Int)
+    ax == Base.OneTo(n) ||
+        throw(DimensionMismatch("$(name) axes $(ax) must be one-based 1:$n"))
+    return nothing
+end
+
+function _check_sbp_vector_axes(name::Symbol, v::AbstractVector, n::Int)
+    _check_sbp_axis(name, axes(v, 1), n)
+    return nothing
+end
+
 "In-place SBP first derivative of a 1-D array."
 function sbp_deriv!(out::AbstractVector{T}, f::AbstractVector{T}, s::SBP1D{T}) where {T}
     n = s.n
     dx = s.dx
     length(f) == n || throw(DimensionMismatch("length $(length(f)) ≠ $n"))
     length(out) == n || throw(DimensionMismatch("output length $(length(out)) ≠ $n"))
+    _check_sbp_vector_axes(:input, f, n)
+    _check_sbp_vector_axes(:output, out, n)
     Base.mightalias(out, f) && throw(ArgumentError("sbp_deriv! output must not alias input"))
     @inbounds begin
         out[1] = (f[2] - f[1]) / dx                      # one-sided
@@ -50,6 +63,8 @@ sbp_deriv(f::AbstractVector{T}, s::SBP1D{T}) where {T} = sbp_deriv!(similar(f), 
 function sbp_deriv_x!(out::AbstractMatrix{T}, f::AbstractMatrix{T}, s::SBP1D{T}) where {T}
     size(f, 1) == s.n || throw(DimensionMismatch("input first dimension $(size(f, 1)) ≠ $(s.n)"))
     size(out) == size(f) || throw(DimensionMismatch("output size $(size(out)) does not match input size $(size(f))"))
+    axes(out) == axes(f) || throw(DimensionMismatch("output axes $(axes(out)) do not match input axes $(axes(f))"))
+    _check_sbp_axis(:input_first_axis, axes(f, 1), s.n)
     Base.mightalias(out, f) && throw(ArgumentError("sbp_deriv_x! output must not alias input"))
     @inbounds for j in axes(f, 2)
         sbp_deriv!(view(out, :, j), view(f, :, j), s)

@@ -6,6 +6,32 @@ using SpectralOperators, Test, LinearAlgebra, Random, Statistics
 
 relL2(a, b) = norm(a .- b) / norm(b)
 
+struct OffsetSbpVector{T,V<:AbstractVector{T}} <: AbstractVector{T}
+    data::V
+    first_index::Int
+end
+
+Base.size(v::OffsetSbpVector) = size(v.data)
+Base.axes(v::OffsetSbpVector) = (v.first_index:(v.first_index + length(v.data) - 1),)
+Base.IndexStyle(::Type{<:OffsetSbpVector}) = IndexLinear()
+Base.getindex(v::OffsetSbpVector, i::Int) = v.data[i - v.first_index + 1]
+Base.setindex!(v::OffsetSbpVector, x, i::Int) = (v.data[i - v.first_index + 1] = x)
+
+struct OffsetSbpMatrix{T,V<:AbstractMatrix{T}} <: AbstractMatrix{T}
+    data::V
+    first_i::Int
+    first_j::Int
+end
+
+Base.size(A::OffsetSbpMatrix) = size(A.data)
+Base.axes(A::OffsetSbpMatrix) = (
+    A.first_i:(A.first_i + size(A.data, 1) - 1),
+    A.first_j:(A.first_j + size(A.data, 2) - 1),
+)
+Base.IndexStyle(::Type{<:OffsetSbpMatrix}) = IndexCartesian()
+Base.getindex(A::OffsetSbpMatrix, i::Int, j::Int) = A.data[i - A.first_i + 1, j - A.first_j + 1]
+Base.setindex!(A::OffsetSbpMatrix, x, i::Int, j::Int) = (A.data[i - A.first_i + 1, j - A.first_j + 1] = x)
+
 # Build f = sin(kx x) cos(ky y) cos(kz z) and exact ∂x f on a 2π^D grid (integer modes).
 function sincos_field(::Type{T}, n::NTuple{D,Int}, modes::NTuple{D,Int}) where {T,D}
     L = ntuple(_ -> T(2π), D)
@@ -214,10 +240,18 @@ end
     @test_throws DimensionMismatch sbp_deriv!(zeros(T, 4), zeros(T, 3), s)
     v = zeros(T, 4)
     @test_throws ArgumentError sbp_deriv!(v, v, s)
+    offset_v = OffsetSbpVector(zeros(T, 4), -2)
+    @test_throws DimensionMismatch sbp_deriv!(zeros(T, 4), offset_v, s)
+    @test_throws DimensionMismatch sbp_deriv!(offset_v, zeros(T, 4), s)
     @test_throws DimensionMismatch sbp_deriv_x!(zeros(T, 3, 2), zeros(T, 4, 2), s)
     @test_throws DimensionMismatch sbp_deriv_x!(zeros(T, 4, 2), zeros(T, 3, 2), s)
     m = zeros(T, 4, 2)
     @test_throws ArgumentError sbp_deriv_x!(m, m, s)
+    offset_m = OffsetSbpMatrix(zeros(T, 4, 2), -1, 1)
+    @test_throws DimensionMismatch sbp_deriv_x!(zeros(T, 4, 2), offset_m, s)
+    @test_throws DimensionMismatch sbp_deriv_x!(offset_m, zeros(T, 4, 2), s)
+    offset_cols = OffsetSbpMatrix(zeros(T, 4, 2), 1, 0)
+    @test_throws DimensionMismatch sbp_deriv_x!(zeros(T, 4, 2), offset_cols, s)
     @test_throws ArgumentError fourier_deriv_y!(zeros(T, 4, 2), zeros(T, 4, 2), zero(T))
     @test_throws DimensionMismatch fourier_deriv_y!(zeros(T, 4, 1), zeros(T, 4, 2), T(1))
     @test_throws ArgumentError FourierDerivYWorkspace(0, 2, T(1))
@@ -250,6 +284,11 @@ end
     my = randn(T, 16, 16)
     dy = similar(my)
     ywork = FourierDerivYWorkspace(my, T(2π))
+    s = SBP1D(16, T(1))
+    fx = randn(T, 16)
+    dfx = similar(fx)
+    mx = randn(T, 16, 8)
+    dmx = similar(mx)
     deriv!(out, f, g, 1)
     gradient!(grad, f, g)
     curl!(B, A, g)
@@ -260,6 +299,8 @@ end
     dealias_two_thirds!(filt, g)
     binomial_smooth!(smooth, g, smooth_work; passes = 1)
     fourier_deriv_y!(dy, my, ywork)
+    sbp_deriv!(dfx, fx, s)
+    sbp_deriv_x!(dmx, mx, s)
     project_divfree!(B, g)   # warm up
     @test (@allocated deriv!(out, f, g, 1)) == 0
     @test (@allocated gradient!(grad, f, g)) == 0
@@ -274,6 +315,8 @@ end
     @test (@allocated binomial_smooth!(smooth, g, smooth_work; passes = 1)) == 0
     @test (@allocated binomial_smooth!(smooth, g, smooth_work; passes = 0)) == 0
     @test (@allocated fourier_deriv_y!(dy, my, ywork)) == 0
+    @test (@allocated sbp_deriv!(dfx, fx, s)) == 0
+    @test (@allocated sbp_deriv_x!(dmx, mx, s)) == 0
     @test (@allocated project_divfree!(B, g)) == 0
 end
 
