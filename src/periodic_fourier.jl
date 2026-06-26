@@ -1,0 +1,63 @@
+# spectral.jl — periodic Fourier spectral operators on a collocated grid.
+#
+# Single primitive: the first-derivative spectral multiplier  ∂_j ↔ i k_j , with
+# the Nyquist mode zeroed (the correct choice for an odd-order derivative on an
+# even grid: its sine partner is unrepresentable, so a real first derivative must
+# drop it). gradient / divergence / curl / divergence-free projection are all
+# built from that one multiplier, which makes the discrete identities
+# div(curl)=0 and ⟨f,Dg⟩=−⟨Df,g⟩ hold to roundoff (the multipliers commute and
+# are used consistently on both sides).
+#
+# Operators reuse preplanned in-place FFTs and complex workspaces, so they
+# allocate nothing in steady state. The workspaces live in the grid object, so a
+# FourierGrid is NOT thread-safe: give each thread / rank its own.
+# Uses full-complex FFTs for a simple, backend-independent implementation. A
+# future rFFT specialization can reduce memory for very large real-valued grids.
+
+"""
+    FourierGrid(n::NTuple{D,Int}, L::NTuple{D,T})
+
+Collocated periodic Fourier grid in `D` dimensions with `n[d]` points and
+physical length `L[d]` per axis. Precomputes wavenumbers, in-place FFT plans,
+and complex scratch buffers.
+"""
+struct FourierGrid{D,T,P,PI}
+    n::NTuple{D,Int}
+    L::NTuple{D,T}
+    dx::NTuple{D,T}
+    ik::NTuple{D,Vector{Complex{T}}}   # i*k per axis, Nyquist zeroed (1st-deriv multiplier)
+    kvec::NTuple{D,Vector{T}}          # real k per axis, Nyquist zeroed (projection geometry)
+    plan::P                            # in-place forward FFT over all dims
+    iplan::PI                          # in-place inverse FFT over all dims
+    cbuf::Array{Complex{T},D}          # scratch / forward transform of input
+    tbuf::Array{Complex{T},D}          # scratch for per-axis multiply+inverse
+    abuf::Array{Complex{T},D}          # complex accumulator
+end
+
+function FourierGrid(n::NTuple{D,Int}, L::NTuple{D,T}) where {D,T<:AbstractFloat}
+    all(>(0), n) || throw(ArgumentError("grid sizes must be positive"))
+    all(>(0), L) || throw(ArgumentError("domain lengths must be positive"))
+    dx = ntuple(d -> L[d] / n[d], D)
+    kvec = ntuple(D) do d
+        N = n[d]
+        k = Vector{T}(undef, N)
+        for m = 0:N-1
+            mp = m <= N ÷ 2 ? m : m - N          # signed mode index
+            k[m+1] = T(2π) * mp / L[d]
+        end
+        if iseven(N)
+            k[N÷2+1] = zero(T)               # zero Nyquist for first derivative
+        end
+        k
+    end
+    ik = ntuple(d -> Complex{T}.(zero(T), kvec[d]), D)
+    cbuf = zeros(Complex{T}, n)
+    tbuf = zeros(Complex{T}, n)
+    abuf = zeros(Complex{T}, n)
+    plan = plan_fft!(cbuf)
+    iplan = plan_ifft!(cbuf)
+    FourierGrid{D,T,typeof(plan),typeof(iplan)}(n, L, dx, ik, kvec, plan, iplan, cbuf, tbuf, abuf)
+end
+
+# dst[I] = f̂[I] * (i k_j)   — apply the axis-j first-derivative multiplier.
+# Explicit Cartesian loop (no reshape) so it is allocation-free for runtime j.
