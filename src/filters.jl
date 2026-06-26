@@ -43,23 +43,14 @@ function exp_filter!(
         km = _kmax_axis(g.n[d], g.L[d])
         kmax2 += km * km
     end
-    # Precompute per-axis squared mode wavenumbers (Nyquist included).
-    k2axis = ntuple(D) do d
-        N = g.n[d]
-        v = Vector{T}(undef, N)
-        @inbounds for m = 0:N-1
-            kk = _mode_wavenumber(m, N, g.L[d])
-            v[m+1] = kk * kk
-        end
-        v
-    end
     g.cbuf .= field
     g.plan * g.cbuf
     @inbounds for I in CartesianIndices(g.cbuf)
         t = Tuple(I)
         k2 = zero(T)
         for d = 1:D
-            k2 += k2axis[d][t[d]]
+            kk = _mode_wavenumber(t[d] - 1, g.n[d], g.L[d])
+            k2 += kk * kk
         end
         if k2 == 0 || kmax2 == 0
             # σ(0) = 1 exactly; degenerate kmax2==0 (n==1 everywhere) ⇒ no damping.
@@ -86,23 +77,14 @@ Returns `field`.
 """
 function dealias_two_thirds!(field::AbstractArray{T,D}, g::FourierGrid{D,T}) where {T,D}
     size(field) == g.n || throw(DimensionMismatch("field size $(size(field)) ≠ grid $(g.n)"))
-    # Per-axis keep-mask: true if |k_d| ≤ (2/3) k_max_d.
-    keep = ntuple(D) do d
-        N = g.n[d]
-        cut = T(2) / T(3) * _kmax_axis(N, g.L[d])
-        m = Vector{Bool}(undef, N)
-        @inbounds for i = 0:N-1
-            m[i+1] = abs(_mode_wavenumber(i, N, g.L[d])) <= cut
-        end
-        m
-    end
+    cuts = ntuple(d -> T(2) / T(3) * _kmax_axis(g.n[d], g.L[d]), D)
     g.cbuf .= field
     g.plan * g.cbuf
     @inbounds for I in CartesianIndices(g.cbuf)
         t = Tuple(I)
         ok = true
         for d = 1:D
-            ok &= keep[d][t[d]]
+            ok &= abs(_mode_wavenumber(t[d] - 1, g.n[d], g.L[d])) <= cuts[d]
         end
         ok || (g.cbuf[I] = zero(Complex{T}))
     end
@@ -229,6 +211,20 @@ function _binomial_pass_axis!(field::Array{T,D}, j::Int, buf::Vector{T}) where {
 end
 
 """
+    BinomialSmoothWorkspace(g::FourierGrid)
+
+Reusable real line buffer for allocation-free [`binomial_smooth!`](@ref) calls
+on fields matching `g`.
+"""
+struct BinomialSmoothWorkspace{T}
+    buf::Vector{T}
+end
+
+function BinomialSmoothWorkspace(g::FourierGrid{D,T}) where {D,T}
+    return BinomialSmoothWorkspace{T}(Vector{T}(undef, maximum(g.n)))
+end
+
+"""
     binomial_smooth!(field::Array{T,D}, g::FourierGrid{D,T}; passes::Int=1)
 
 Apply the binomial `(1,2,1)/4` smoothing stencil in place to `field`, `passes`
@@ -251,9 +247,29 @@ function binomial_smooth!(field::Array{T,D}, g::FourierGrid{D,T}; passes::Int = 
     size(field) == g.n ||
         throw(DimensionMismatch("field size $(size(field)) does not match grid size $(g.n)"))
     passes == 0 && return field
-    # One reusable line buffer sized to the largest axis; each axis pass uses
-    # only its first n[j] entries.
-    buf = Vector{T}(undef, maximum(g.n))
+    work = BinomialSmoothWorkspace(g)
+    return binomial_smooth!(field, g, work; passes)
+end
+
+"""
+    binomial_smooth!(field, g, work::BinomialSmoothWorkspace; passes=1)
+
+Workspace-backed variant of [`binomial_smooth!`](@ref). Reuse `work` across
+calls on the same real element type to avoid allocating the line buffer.
+"""
+function binomial_smooth!(
+    field::Array{T,D},
+    g::FourierGrid{D,T},
+    work::BinomialSmoothWorkspace{T};
+    passes::Int = 1,
+) where {T,D}
+    passes >= 0 || throw(ArgumentError("passes must be non-negative, got $passes"))
+    size(field) == g.n ||
+        throw(DimensionMismatch("field size $(size(field)) does not match grid size $(g.n)"))
+    passes == 0 && return field
+    buf = work.buf
+    length(buf) >= maximum(g.n) ||
+        throw(DimensionMismatch("workspace length $(length(buf)) is smaller than required $(maximum(g.n))"))
     for j = 1:D
         for _ = 1:passes
             _binomial_pass_axis!(field, j, buf)

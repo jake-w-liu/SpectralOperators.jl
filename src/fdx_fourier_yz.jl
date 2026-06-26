@@ -63,19 +63,63 @@ Spectral derivative along the periodic transverse direction y (dim 2) of a 2-D
 field, with the Nyquist mode zeroed (odd derivative).
 """
 function fourier_deriv_y!(out::Matrix{T}, f::Matrix{T}, Ly::T) where {T}
+    work = FourierDerivYWorkspace(size(f, 1), size(f, 2), Ly)
+    return fourier_deriv_y!(out, f, work)
+end
+
+"""
+    FourierDerivYWorkspace(nx, ny, Ly)
+    FourierDerivYWorkspace(f, Ly)
+
+Reusable FFT workspace for allocation-free [`fourier_deriv_y!`](@ref) calls on
+`nx × ny` matrices with periodic length `Ly` along the second dimension.
+"""
+struct FourierDerivYWorkspace{T,P,PI}
+    nx::Int
+    ny::Int
+    Ly::T
+    ky::Vector{T}
+    cbuf::Matrix{Complex{T}}
+    plan::P
+    iplan::PI
+end
+
+function FourierDerivYWorkspace(nx::Integer, ny::Integer, Ly::T) where {T<:AbstractFloat}
+    nx >= 1 || throw(ArgumentError("nx must be positive"))
+    ny >= 1 || throw(ArgumentError("ny must be positive"))
     Ly > 0 || throw(ArgumentError("Ly must be positive"))
-    size(out) == size(f) || throw(DimensionMismatch("output size $(size(out)) does not match input size $(size(f))"))
-    ny = size(f, 2)
-    ky = Vector{T}(undef, ny)
-    for m = 0:ny-1
-        mp = m <= ny ÷ 2 ? m : m - ny
+    nxi = Int(nx)
+    nyi = Int(ny)
+    ky = Vector{T}(undef, nyi)
+    for m = 0:nyi-1
+        mp = m <= nyi ÷ 2 ? m : m - nyi
         ky[m+1] = T(2π) * mp / Ly
     end
-    iseven(ny) && (ky[ny÷2+1] = zero(T))
-    fh = fft(f, 2)
-    @inbounds for m = 1:ny
-        @views fh[:, m] .*= im * ky[m]
+    iseven(nyi) && (ky[nyi÷2+1] = zero(T))
+    cbuf = zeros(Complex{T}, nxi, nyi)
+    plan = plan_fft!(cbuf, 2)
+    iplan = plan_ifft!(cbuf, 2)
+    return FourierDerivYWorkspace{T,typeof(plan),typeof(iplan)}(nxi, nyi, Ly, ky, cbuf, plan, iplan)
+end
+
+function FourierDerivYWorkspace(f::AbstractMatrix{T}, Ly::T) where {T<:AbstractFloat}
+    return FourierDerivYWorkspace(size(f, 1), size(f, 2), Ly)
+end
+
+function fourier_deriv_y!(out::Matrix{T}, f::Matrix{T}, work::FourierDerivYWorkspace{T}) where {T}
+    size(f) == (work.nx, work.ny) ||
+        throw(DimensionMismatch("input size $(size(f)) does not match workspace size $((work.nx, work.ny))"))
+    size(out) == size(f) ||
+        throw(DimensionMismatch("output size $(size(out)) does not match input size $(size(f))"))
+    work.cbuf .= f
+    work.plan * work.cbuf
+    @inbounds for m = 1:work.ny
+        ik = Complex{T}(zero(T), work.ky[m])
+        for i = 1:work.nx
+            work.cbuf[i, m] *= ik
+        end
     end
-    out .= real.(ifft(fh, 2))
+    work.iplan * work.cbuf
+    out .= real.(work.cbuf)
     return out
 end

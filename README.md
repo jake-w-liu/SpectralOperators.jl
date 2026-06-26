@@ -103,11 +103,15 @@ exp_filter!(field, g2; α = 36, p = 8)
 dealias_two_thirds!(field, g2)
 binomial_smooth!(field, g2; passes = 1)
 
+smooth_work = BinomialSmoothWorkspace(g2)
+binomial_smooth!(field, g2, smooth_work; passes = 1)
+
 tf = smoothing_transfer(3.0, g2.dx[1]; passes = 2)
 ```
 
 `exp_filter!`, `dealias_two_thirds!`, and `binomial_smooth!` preserve the mean
-mode by construction.
+mode by construction. The workspace-backed smoothing overload avoids allocating
+the line buffer in repeated calls.
 
 ## Mixed SBP/Fourier Operators
 
@@ -125,10 +129,14 @@ sbp_deriv_x!(dux, u, s)
 
 duy = similar(u)
 fourier_deriv_y!(duy, u, 2 * pi)
+
+ywork = FourierDerivYWorkspace(u, 2 * pi)
+fourier_deriv_y!(duy, u, ywork)
 ```
 
 The SBP derivative is not an in-place transform: the output must not alias the
-input.
+input. Reuse `FourierDerivYWorkspace` for repeated transverse Fourier
+derivatives on the same matrix size.
 
 ## FFTW Wisdom
 
@@ -158,5 +166,6 @@ and steady-state zero allocation for the main periodic Fourier operators.
 
 ## Registration Readiness
 
-Before registering in Julia General, this package still needs to live in its own
-public git repository and include an OSI-approved license file.
+The package has its own git repository and license file. Before Julia General
+registration, run the normal release checks from a clean checkout and tag the
+release intended for registration.

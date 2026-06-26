@@ -213,6 +213,17 @@ end
     @test_throws ArgumentError sbp_deriv_x!(m, m, s)
     @test_throws ArgumentError fourier_deriv_y!(zeros(T, 4, 2), zeros(T, 4, 2), zero(T))
     @test_throws DimensionMismatch fourier_deriv_y!(zeros(T, 4, 1), zeros(T, 4, 2), T(1))
+    @test_throws ArgumentError FourierDerivYWorkspace(0, 2, T(1))
+    @test_throws ArgumentError FourierDerivYWorkspace(2, 0, T(1))
+    @test_throws ArgumentError FourierDerivYWorkspace(2, 2, zero(T))
+    wy = FourierDerivYWorkspace(4, 2, T(1))
+    @test_throws DimensionMismatch fourier_deriv_y!(zeros(T, 4, 2), zeros(T, 3, 2), wy)
+    @test_throws DimensionMismatch fourier_deriv_y!(zeros(T, 4, 1), zeros(T, 4, 2), wy)
+
+    sw = BinomialSmoothWorkspace(g)
+    @test_throws ArgumentError binomial_smooth!(copy(f), g, sw; passes = -1)
+    @test_throws DimensionMismatch binomial_smooth!(zeros(T, 7, 8), g, sw; passes = 1)
+    @test_throws DimensionMismatch binomial_smooth!(copy(f), g, BinomialSmoothWorkspace{T}(zeros(T, 1)); passes = 1)
 end
 
 @testset "operators allocate nothing in steady state" begin
@@ -225,15 +236,37 @@ end
     A = ntuple(_ -> randn(T, n...), 3)
     B = ntuple(_ -> similar(f), 3)
     divB = similar(f)
+    lap = similar(f)
+    filt = copy(f)
+    smooth = copy(f)
+    smooth_work = BinomialSmoothWorkspace(g)
+    my = randn(T, 16, 16)
+    dy = similar(my)
+    ywork = FourierDerivYWorkspace(my, T(2π))
     deriv!(out, f, g, 1)
     gradient!(grad, f, g)
     curl!(B, A, g)
     divergence!(divB, B, g)
+    laplacian!(lap, f, g)
+    exp_filter!(filt, g)
+    filt .= f
+    dealias_two_thirds!(filt, g)
+    binomial_smooth!(smooth, g, smooth_work; passes = 1)
+    fourier_deriv_y!(dy, my, ywork)
     project_divfree!(B, g)   # warm up
     @test (@allocated deriv!(out, f, g, 1)) == 0
     @test (@allocated gradient!(grad, f, g)) == 0
     @test (@allocated curl!(B, A, g)) == 0
     @test (@allocated divergence!(divB, B, g)) == 0
+    @test (@allocated laplacian!(lap, f, g)) == 0
+    filt .= f
+    @test (@allocated exp_filter!(filt, g)) == 0
+    filt .= f
+    @test (@allocated dealias_two_thirds!(filt, g)) == 0
+    smooth .= f
+    @test (@allocated binomial_smooth!(smooth, g, smooth_work; passes = 1)) == 0
+    @test (@allocated binomial_smooth!(smooth, g, smooth_work; passes = 0)) == 0
+    @test (@allocated fourier_deriv_y!(dy, my, ywork)) == 0
     @test (@allocated project_divfree!(B, g)) == 0
 end
 
