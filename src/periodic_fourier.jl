@@ -36,7 +36,14 @@ struct FourierGrid{D,T,P,PI}
     abuf::Array{Complex{T},D}          # complex accumulator
 end
 
+@inline function _require_fftw_float(::Type{T}, name::Symbol) where {T<:AbstractFloat}
+    (T === Float32 || T === Float64) ||
+        throw(ArgumentError("$(name) supports only Float32 and Float64 with the FFTW backend; got $(T)"))
+    return nothing
+end
+
 function FourierGrid(n::Tuple{Int,Vararg{Int}}, L::Tuple{T,Vararg{T}}) where {T<:AbstractFloat}
+    _require_fftw_float(T, :FourierGrid)
     D = length(n)
     length(L) == D || throw(DimensionMismatch("domain length tuple has length $(length(L)); expected $D"))
     all(>(0), n) || throw(ArgumentError("grid sizes must be positive"))
@@ -78,7 +85,9 @@ function FourierGrid(n::Tuple{Int,Vararg{Int}}, L::Tuple{T,Vararg{T}}) where {T<
     FourierGrid{D,T,typeof(plan),typeof(iplan)}(n, L, dx, midx, kfull, ik, kvec, plan, iplan, cbuf, tbuf, abuf)
 end
 
-@inline function _require_grid_array(name::Symbol, a::AbstractArray, g::FourierGrid)
+@inline function _require_grid_array(name::Symbol, a::AbstractArray, g::FourierGrid{D,T}) where {D,T}
+    eltype(a) === T ||
+        throw(ArgumentError("$(name) element type $(eltype(a)) does not match grid element type $(T)"))
     size(a) == g.n ||
         throw(DimensionMismatch("$(name) size $(size(a)) does not match grid size $(g.n)"))
     axes(a) == axes(g.cbuf) ||
@@ -86,7 +95,9 @@ end
     return nothing
 end
 
-@inline function _require_grid_array(name::Symbol, c::Int, a::AbstractArray, g::FourierGrid)
+@inline function _require_grid_array(name::Symbol, c::Int, a::AbstractArray, g::FourierGrid{D,T}) where {D,T}
+    eltype(a) === T ||
+        throw(ArgumentError("$(name)[$c] element type $(eltype(a)) does not match grid element type $(T)"))
     size(a) == g.n ||
         throw(DimensionMismatch("$(name)[$c] size $(size(a)) does not match grid size $(g.n)"))
     axes(a) == axes(g.cbuf) ||

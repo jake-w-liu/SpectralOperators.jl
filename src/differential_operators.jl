@@ -12,6 +12,19 @@
     return dst
 end
 
+@inline function _apply_ik_store_scaled!(
+    dst::AbstractArray{Complex{T},D},
+    fhat::AbstractArray{Complex{T},D},
+    ikj::Vector{Complex{T}},
+    j::Int,
+    s::T,
+) where {D,T}
+    @inbounds for I in CartesianIndices(dst)
+        dst[I] = s * fhat[I] * ikj[I[j]]
+    end
+    return dst
+end
+
 # acc[I] += s * f̂[I] * (i k_j)
 @inline function _apply_ik_accum!(
     acc::AbstractArray{Complex{T},D},
@@ -142,6 +155,33 @@ function curl!(
     end
     o = one(T)
     m = -one(T)
+    if D == 1
+        fill!(out[1], zero(T))
+        fill!(g.abuf, zero(Complex{T}))
+        _accum_deriv!(g.abuf, A[3], g, 1, m)
+        g.iplan * g.abuf
+        out[2] .= real.(g.abuf)
+        fill!(g.abuf, zero(Complex{T}))
+        _accum_deriv!(g.abuf, A[2], g, 1, o)
+        g.iplan * g.abuf
+        out[3] .= real.(g.abuf)
+        return out
+    elseif D == 2
+        g.cbuf .= A[3]
+        g.plan * g.cbuf
+        _apply_ik_store!(g.tbuf, g.cbuf, g.ik[2], 2)
+        g.iplan * g.tbuf
+        out[1] .= real.(g.tbuf)
+        _apply_ik_store_scaled!(g.tbuf, g.cbuf, g.ik[1], 1, m)
+        g.iplan * g.tbuf
+        out[2] .= real.(g.tbuf)
+        fill!(g.abuf, zero(Complex{T}))
+        _accum_deriv!(g.abuf, A[2], g, 1, o)
+        _accum_deriv!(g.abuf, A[1], g, 2, m)
+        g.iplan * g.abuf
+        out[3] .= real.(g.abuf)
+        return out
+    end
     # (curl A)_x = ∂_y A_z − ∂_z A_y
     fill!(g.abuf, zero(Complex{T}))
     D >= 2 && _accum_deriv!(g.abuf, A[3], g, 2, o)

@@ -55,7 +55,8 @@ deriv!(out, f, g, 1)
 ```
 
 `FourierGrid` owns FFT plans and scratch arrays. Reuse it for repeated operator
-calls on the same grid shape and element type.
+calls on the same grid shape and element type. FFT-backed operators support
+`Float32` and `Float64` fields.
 
 ## Vector Operators
 
@@ -88,8 +89,10 @@ divB = similar(B[1])
 divergence!(divB, B, g)
 ```
 
-The projection keeps the zero Fourier mode unchanged and removes the
-longitudinal component for all nonzero modes. Component arrays must be distinct.
+The projection uses the same Nyquist-zeroed derivative wavenumbers as
+`divergence!`: it keeps modes whose derivative wavenumber is zero unchanged and
+removes the longitudinal component from derivative-resolved modes. Component
+arrays must be distinct.
 
 ## Filters and Smoothing
 
@@ -145,8 +148,8 @@ with_fftw_wisdom("fftw_wisdom.dat") do
 end
 ```
 
-The helper imports wisdom if the file exists and exports wisdom after the block,
-even if the block throws.
+The helper imports wisdom if the file exists and attempts to export wisdom after
+the block, even if the block throws. Import/export failures are non-fatal.
 
 ## Testing
 

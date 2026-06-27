@@ -117,6 +117,7 @@ function _positive_length(::Type{T}, Ly::Real, name::Symbol) where {T<:AbstractF
 end
 
 function _fourier_deriv_y_workspace(nx::Integer, ny::Integer, Ly::T) where {T<:AbstractFloat}
+    _require_fftw_float(T, :FourierDerivYWorkspace)
     nx >= 1 || throw(ArgumentError("nx must be positive"))
     ny >= 1 || throw(ArgumentError("ny must be positive"))
     Ly = _positive_length(T, Ly, :Ly)

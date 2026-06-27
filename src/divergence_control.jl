@@ -4,8 +4,10 @@
     project_divfree!(B::NTuple{3}, g)
 
 Project a 3-component field onto its divergence-free part in place:
-B̂ ← (I − k kᵀ/k²) B̂ for k≠0, leaving the k=0 mean untouched. After projection
-the discrete divergence (same wavenumbers) is zero to roundoff.
+B̂ ← (I − k kᵀ/k²) B̂ for derivative-resolved k≠0, leaving modes whose
+Nyquist-zeroed derivative wavenumber is zero untouched. After projection the
+discrete divergence (same wavenumbers as [`divergence!`](@ref)) is zero to
+roundoff.
 """
 function project_divfree!(B::Tuple{Vararg{AbstractArray{T,D},3}}, g::FourierGrid{D,T}) where {D,T}
     D <= 3 || throw(ArgumentError("project_divfree! supports spatial dimension D ≤ 3; got $D"))

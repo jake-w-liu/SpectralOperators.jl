@@ -116,6 +116,49 @@ end
     end
 end
 
+@testset "closed-form reduced curl oracles" begin
+    T = Float64
+
+    n1 = (16,)
+    g1 = FourierGrid(n1, (T(2π),))
+    A1 = ntuple(_ -> zeros(T, n1...), 3)
+    exact1 = ntuple(_ -> zeros(T, n1...), 3)
+    @inbounds for I in CartesianIndices(A1[1])
+        i = Tuple(I)[1]
+        x = (i - 1) * g1.dx[1]
+        A1[2][I] = sin(2x)
+        A1[3][I] = cos(3x)
+        exact1[2][I] = 3sin(3x)
+        exact1[3][I] = 2cos(2x)
+    end
+    out1 = ntuple(_ -> similar(A1[1]), 3)
+    curl!(out1, A1, g1)
+    for c = 1:3
+        @test norm(out1[c] .- exact1[c]) / (norm(exact1[c]) + eps(T)) < 1e-11
+    end
+
+    n2 = (16, 16)
+    g2 = FourierGrid(n2, (T(2π), T(2π)))
+    A2 = ntuple(_ -> zeros(T, n2...), 3)
+    exact2 = ntuple(_ -> zeros(T, n2...), 3)
+    @inbounds for I in CartesianIndices(A2[1])
+        i, j = Tuple(I)
+        x = (i - 1) * g2.dx[1]
+        y = (j - 1) * g2.dx[2]
+        A2[1][I] = sin(y)
+        A2[2][I] = cos(x)
+        A2[3][I] = sin(x) + cos(y)
+        exact2[1][I] = -sin(y)
+        exact2[2][I] = -cos(x)
+        exact2[3][I] = -sin(x) - cos(y)
+    end
+    out2 = ntuple(_ -> similar(A2[1]), 3)
+    curl!(out2, A2, g2)
+    for c = 1:3
+        @test norm(out2[c] .- exact2[c]) / norm(exact2[c]) < 1e-11
+    end
+end
+
 @testset "OP-003 divergence-free projection" begin
     Random.seed!(2)
     for T in (Float64, Float32)
@@ -258,6 +301,8 @@ end
     @test_throws ArgumentError FourierGrid((8,), (zero(T),))
     @test_throws ArgumentError FourierGrid((8,), (T(Inf),))
     @test_throws ArgumentError FourierGrid((8,), (T(NaN),))
+    @test_throws ArgumentError FourierGrid((8,), (Float16(1),))
+    @test_throws ArgumentError FourierGrid((8,), (BigFloat(1),))
     @test_throws DimensionMismatch FourierGrid((8, 8), (T(1),))
     @test_throws DimensionMismatch FourierGrid((8,), (T(1), T(1)))
     @test_throws ArgumentError deriv!(out, f, g, 3)
@@ -265,6 +310,7 @@ end
     @test_throws DimensionMismatch gradient!((zeros(T, 7, 8), similar(f)), f, g)
     @test_throws ArgumentError gradient!((out, out), f, g)
     @test_throws ArgumentError divergence!(similar(f), (f,), g)
+    @test_throws ArgumentError divergence!(similar(f), (randn(Float32, g.n...), f), g)
     @test_throws DimensionMismatch laplacian!(zeros(T, 7, 8), f, g)
 
     offset_f = OffsetSbpMatrix(copy(f), 0, 1)
@@ -327,6 +373,8 @@ end
     @test_throws ArgumentError FourierDerivYWorkspace(0, 2, T(1))
     @test_throws ArgumentError FourierDerivYWorkspace(2, 0, T(1))
     @test_throws ArgumentError FourierDerivYWorkspace(2, 2, zero(T))
+    @test_throws ArgumentError FourierDerivYWorkspace(2, 2, Float16(1))
+    @test_throws ArgumentError FourierDerivYWorkspace(2, 2, BigFloat(1))
     wy = FourierDerivYWorkspace(4, 2, T(1))
     @test_throws DimensionMismatch fourier_deriv_y!(zeros(T, 4, 2), zeros(T, 3, 2), wy)
     @test_throws DimensionMismatch fourier_deriv_y!(zeros(T, 4, 1), zeros(T, 4, 2), wy)
@@ -335,6 +383,18 @@ end
     @test_throws ArgumentError binomial_smooth!(copy(f), g, sw; passes = -1)
     @test_throws DimensionMismatch binomial_smooth!(zeros(T, 7, 8), g, sw; passes = 1)
     @test_throws DimensionMismatch binomial_smooth!(copy(f), g, BinomialSmoothWorkspace{T}(zeros(T, 1)); passes = 1)
+end
+
+@testset "project_divfree! uses derivative-resolved Nyquist convention" begin
+    T = Float64
+    g = FourierGrid((8,), (T(2π),))
+    nyquist = T[(-1)^(i - 1) for i = 1:8]
+    B = (copy(nyquist), zeros(T, 8), zeros(T, 8))
+    project_divfree!(B, g)
+    @test B[1] == nyquist
+    divB = similar(B[1])
+    divergence!(divB, B, g)
+    @test maximum(abs, divB) < 10eps(T)
 end
 
 @testset "project_divfree! preserves absent-axis components" begin

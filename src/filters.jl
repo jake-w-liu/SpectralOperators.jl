@@ -116,11 +116,12 @@ end
 """
     with_fftw_wisdom(f, path::AbstractString)
 
-Run `f()` with FFTW plan wisdom persisted at `path`. Before calling `f`, import
-any wisdom already saved at `path` (silently skipped if the file is absent or
-cannot be read). After `f` returns — even if it throws — export the current
-accumulated wisdom to `path` so newly created plans are remembered for next time.
-Returns whatever `f()` returns.
+Run `f()` while attempting to persist FFTW plan wisdom at `path`. Before calling
+`f`, import any wisdom already saved at `path` (silently skipped if the file is
+absent or cannot be read). After `f` returns — even if it throws — attempt to
+export the current accumulated wisdom to `path` so newly created plans can be
+remembered for next time. Import/export failures are non-fatal. Returns whatever
+`f()` returns.
 
 Wisdom is FFTW's record of empirically tuned plans; reusing it lets repeated
 `plan_fft!`/`plan_ifft!` calls (e.g. across runs or many `FourierGrid`s) reuse
