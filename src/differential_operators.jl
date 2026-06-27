@@ -1,4 +1,4 @@
-# DifferentialOperators.jl — periodic Fourier ∂/∇/∇·/∇×/∇² (extracted from spectral.jl)
+# differential_operators.jl — periodic Fourier ∂/∇/∇·/∇×/∇².
 
 @inline function _apply_ik_store!(
     dst::AbstractArray{Complex{T},D},

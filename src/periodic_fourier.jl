@@ -1,4 +1,4 @@
-# spectral.jl — periodic Fourier spectral operators on a collocated grid.
+# periodic_fourier.jl — periodic Fourier spectral operators on a collocated grid.
 #
 # Single primitive: the first-derivative spectral multiplier  ∂_j ↔ i k_j , with
 # the Nyquist mode zeroed (the correct choice for an odd-order derivative on an

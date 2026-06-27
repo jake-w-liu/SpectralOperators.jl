@@ -1,4 +1,4 @@
-# sbp.jl — mixed shock operator (§8.2): a non-periodic summation-by-parts (SBP)
+# fdx_fourier_yz.jl — mixed shock operator: non-periodic summation-by-parts (SBP)
 # first derivative along the shock normal x, Fourier along the periodic
 # transverse directions. Avoids imposing periodicity between upstream and
 # downstream plasma states while keeping spectral accuracy on the shock surface.

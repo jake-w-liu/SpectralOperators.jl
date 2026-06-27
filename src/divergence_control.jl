@@ -1,4 +1,4 @@
-# DivergenceControl.jl — divergence-free projection (extracted from spectral.jl)
+# divergence_control.jl — divergence-free projection.
 
 """
     project_divfree!(B::NTuple{3}, g)

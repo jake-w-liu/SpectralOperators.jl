@@ -1,4 +1,4 @@
-# Filters.jl — spectral filters, dealiasing, FFT planning, binomial smoothing
+# filters.jl — spectral filters, dealiasing, FFT planning, binomial smoothing
 
 # True (Nyquist-inclusive) signed mode wavenumber for axis of length N, domain L.
 @inline function _mode_wavenumber(m::Int, N::Int, L::T) where {T<:AbstractFloat}
@@ -147,7 +147,7 @@ function with_fftw_wisdom(f, path::AbstractString)
     end
 end
 
-# --- binomial smoothing (from smoothing.jl) ---
+# --- binomial smoothing ---
 """
     smoothing_transfer(k, dx; passes::Int=1)
 
