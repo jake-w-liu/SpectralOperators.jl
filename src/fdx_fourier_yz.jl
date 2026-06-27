@@ -84,8 +84,8 @@ end
 Spectral derivative along the periodic transverse direction y (dim 2) of a 2-D
 field, with the Nyquist mode zeroed (odd derivative).
 """
-function fourier_deriv_y!(out::Matrix{T}, f::Matrix{T}, Ly::T) where {T}
-    work = FourierDerivYWorkspace(size(f, 1), size(f, 2), Ly)
+function fourier_deriv_y!(out::Matrix{T}, f::Matrix{T}, Ly::Real) where {T<:AbstractFloat}
+    work = FourierDerivYWorkspace(f, Ly)
     return fourier_deriv_y!(out, f, work)
 end
 
@@ -106,10 +106,17 @@ struct FourierDerivYWorkspace{T,P,PI}
     iplan::PI
 end
 
-function FourierDerivYWorkspace(nx::Integer, ny::Integer, Ly::T) where {T<:AbstractFloat}
+function _positive_length(::Type{T}, Ly::Real, name::Symbol) where {T<:AbstractFloat}
+    LyT = T(Ly)
+    isfinite(LyT) && LyT > zero(T) ||
+        throw(ArgumentError("$(name) must be positive, finite, and representable as $(T)"))
+    return LyT
+end
+
+function _fourier_deriv_y_workspace(nx::Integer, ny::Integer, Ly::T) where {T<:AbstractFloat}
     nx >= 1 || throw(ArgumentError("nx must be positive"))
     ny >= 1 || throw(ArgumentError("ny must be positive"))
-    Ly > 0 || throw(ArgumentError("Ly must be positive"))
+    Ly = _positive_length(T, Ly, :Ly)
     nxi = Int(nx)
     nyi = Int(ny)
     ky = Vector{T}(undef, nyi)
@@ -124,8 +131,16 @@ function FourierDerivYWorkspace(nx::Integer, ny::Integer, Ly::T) where {T<:Abstr
     return FourierDerivYWorkspace{T,typeof(plan),typeof(iplan)}(nxi, nyi, Ly, ky, cbuf, plan, iplan)
 end
 
-function FourierDerivYWorkspace(f::AbstractMatrix{T}, Ly::T) where {T<:AbstractFloat}
-    return FourierDerivYWorkspace(size(f, 1), size(f, 2), Ly)
+function FourierDerivYWorkspace(nx::Integer, ny::Integer, Ly::T) where {T<:AbstractFloat}
+    return _fourier_deriv_y_workspace(nx, ny, Ly)
+end
+
+function FourierDerivYWorkspace(nx::Integer, ny::Integer, Ly::Real)
+    return _fourier_deriv_y_workspace(nx, ny, _positive_length(Float64, Ly, :Ly))
+end
+
+function FourierDerivYWorkspace(f::AbstractMatrix{T}, Ly::Real) where {T<:AbstractFloat}
+    return _fourier_deriv_y_workspace(size(f, 1), size(f, 2), _positive_length(T, Ly, :Ly))
 end
 
 function fourier_deriv_y!(out::Matrix{T}, f::Matrix{T}, work::FourierDerivYWorkspace{T}) where {T}

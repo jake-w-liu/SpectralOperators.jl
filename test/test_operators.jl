@@ -1,5 +1,5 @@
-# Operator benchmarks OP-001/002/003/005/006 (periodic Fourier).
-# OP-004 (mixed FD/Fourier) is deferred to the mixed-operator phase.
+# Operator benchmarks OP-001/002/003/005/006 (periodic Fourier) and OP-004
+# mixed SBP/Fourier behavior.
 # Oracles are closed-form and never call the production operator under test.
 
 using SpectralOperators, Test, LinearAlgebra, Random, Statistics
@@ -226,6 +226,26 @@ end
     fourier_deriv_y!(dy, fy, Ly)
     @test norm(dy .- repeat(reshape(collect(3 .* cos.(3 .* y)), 1, ny), 4, 1)) /
           norm(dy) < 1e-12
+end
+
+@testset "mixed Fourier-y accepts Real lengths" begin
+    T = Float32
+    ny = 24
+    Ly = 2π
+    y = T.(range(0.0, Ly; length = ny + 1)[1:end-1])
+    fy = repeat(reshape(sin.(T(3) .* y), 1, ny), 4, 1)
+    exact = repeat(reshape(T(3) .* cos.(T(3) .* y), 1, ny), 4, 1)
+
+    dy = similar(fy)
+    fourier_deriv_y!(dy, fy, Ly)
+    @test eltype(dy) === T
+    @test norm(dy .- exact) / norm(exact) < 1e-5
+
+    work = FourierDerivYWorkspace(fy, Ly)
+    fill!(dy, zero(T))
+    fourier_deriv_y!(dy, fy, work)
+    @test work.Ly isa T
+    @test norm(dy .- exact) / norm(exact) < 1e-5
 end
 
 @testset "defensive shape and alias checks" begin
