@@ -19,7 +19,8 @@ end
 
 function SBP1D(n::Integer, L::T) where {T<:AbstractFloat}
     n >= 3 || throw(ArgumentError("SBP needs at least 3 nodes"))
-    L > 0 || throw(ArgumentError("SBP domain length must be positive"))
+    isfinite(L) && L > zero(T) ||
+        throw(ArgumentError("SBP domain length must be positive and finite"))
     dx = L / (n - 1)
     H = fill(dx, n)
     H[1] = dx / 2
@@ -82,7 +83,9 @@ end
     fourier_deriv_y!(out, f, Ly)
 
 Spectral derivative along the periodic transverse direction y (dim 2) of a 2-D
-field, with the Nyquist mode zeroed (odd derivative).
+field, with the Nyquist mode zeroed (odd derivative). This convenience overload
+creates a workspace; for repeated calls, use [`FourierDerivYWorkspace`](@ref)
+and the workspace-backed overload.
 """
 function fourier_deriv_y!(out::Matrix{T}, f::Matrix{T}, Ly::Real) where {T<:AbstractFloat}
     work = FourierDerivYWorkspace(f, Ly)

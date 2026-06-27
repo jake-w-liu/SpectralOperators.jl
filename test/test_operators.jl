@@ -256,6 +256,8 @@ end
 
     @test_throws ArgumentError FourierGrid((0,), (T(1),))
     @test_throws ArgumentError FourierGrid((8,), (zero(T),))
+    @test_throws ArgumentError FourierGrid((8,), (T(Inf),))
+    @test_throws ArgumentError FourierGrid((8,), (T(NaN),))
     @test_throws DimensionMismatch FourierGrid((8, 8), (T(1),))
     @test_throws DimensionMismatch FourierGrid((8,), (T(1), T(1)))
     @test_throws ArgumentError deriv!(out, f, g, 3)
@@ -301,6 +303,8 @@ end
     @test_throws ArgumentError SBP1D(2, T(1))
     @test_throws ArgumentError SBP1D(4, zero(T))
     @test_throws ArgumentError SBP1D(4, -one(T))
+    @test_throws ArgumentError SBP1D(4, T(Inf))
+    @test_throws ArgumentError SBP1D(4, T(NaN))
     s = SBP1D(4, T(1))
     @test_throws DimensionMismatch sbp_deriv!(zeros(T, 3), zeros(T, 4), s)
     @test_throws DimensionMismatch sbp_deriv!(zeros(T, 4), zeros(T, 3), s)
@@ -331,6 +335,30 @@ end
     @test_throws ArgumentError binomial_smooth!(copy(f), g, sw; passes = -1)
     @test_throws DimensionMismatch binomial_smooth!(zeros(T, 7, 8), g, sw; passes = 1)
     @test_throws DimensionMismatch binomial_smooth!(copy(f), g, BinomialSmoothWorkspace{T}(zeros(T, 1)); passes = 1)
+end
+
+@testset "project_divfree! preserves absent-axis components" begin
+    Random.seed!(4)
+    for T in (Float64, Float32)
+        g1 = FourierGrid((16,), (T(2π),))
+        B1 = ntuple(_ -> randn(T, g1.n...), 3)
+        B1y = copy(B1[2])
+        B1z = copy(B1[3])
+        project_divfree!(B1, g1)
+        @test B1[2] == B1y
+        @test B1[3] == B1z
+
+        g2 = FourierGrid((16, 16), (T(2π), T(2π)))
+        B2 = ntuple(_ -> randn(T, g2.n...), 3)
+        B2z = copy(B2[3])
+        project_divfree!(B2, g2)
+        @test B2[3] == B2z
+
+        divB = similar(B2[1])
+        divergence!(divB, B2, g2)
+        scale = maximum(abs, B2[1]) + maximum(abs, B2[2]) + eps(T)
+        @test maximum(abs, divB) / scale < (T == Float64 ? 1e-10 : 1e-3)
+    end
 end
 
 @testset "binomial smoothing N=2 periodic stencil" begin

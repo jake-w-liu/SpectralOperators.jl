@@ -40,7 +40,8 @@ function FourierGrid(n::Tuple{Int,Vararg{Int}}, L::Tuple{T,Vararg{T}}) where {T<
     D = length(n)
     length(L) == D || throw(DimensionMismatch("domain length tuple has length $(length(L)); expected $D"))
     all(>(0), n) || throw(ArgumentError("grid sizes must be positive"))
-    all(>(0), L) || throw(ArgumentError("domain lengths must be positive"))
+    all(l -> isfinite(l) && l > zero(T), L) ||
+        throw(ArgumentError("domain lengths must be positive and finite"))
     dx = ntuple(d -> L[d] / n[d], D)
     midx = ntuple(D) do d
         N = n[d]

@@ -16,32 +16,46 @@ function project_divfree!(B::Tuple{Vararg{AbstractArray{T,D},3}}, g::FourierGrid
         Base.mightalias(B[c], B[d]) &&
             throw(ArgumentError("project_divfree! components must not alias each other"))
     end
-    Bx, By, Bz = g.cbuf, g.tbuf, g.abuf
+    Bx = g.cbuf
     Bx .= B[1]
     g.plan * Bx
-    By .= B[2]
-    g.plan * By
-    Bz .= B[3]
-    g.plan * Bz
-    kx, ky, kz = g.kvec[1], (D >= 2 ? g.kvec[2] : g.kvec[1]), (D >= 3 ? g.kvec[3] : g.kvec[1])
+    if D >= 2
+        By = g.tbuf
+        By .= B[2]
+        g.plan * By
+    end
+    if D >= 3
+        Bz = g.abuf
+        Bz .= B[3]
+        g.plan * Bz
+    end
+    kx = g.kvec[1]
+    ky = D >= 2 ? g.kvec[2] : kx
+    kz = D >= 3 ? g.kvec[3] : kx
     @inbounds for I in CartesianIndices(Bx)
-        t = Tuple(I)
-        wx = kx[t[1]]
-        wy = D >= 2 ? ky[t[2]] : zero(T)
-        wz = D >= 3 ? kz[t[3]] : zero(T)
+        wx = kx[I[1]]
+        wy = D >= 2 ? ky[I[2]] : zero(T)
+        wz = D >= 3 ? kz[I[3]] : zero(T)
         k2 = wx * wx + wy * wy + wz * wz
         if k2 > 0
-            f = (wx * Bx[I] + wy * By[I] + wz * Bz[I]) / k2
+            f = wx * Bx[I]
+            D >= 2 && (f += wy * By[I])
+            D >= 3 && (f += wz * Bz[I])
+            f /= k2
             Bx[I] -= wx * f
-            By[I] -= wy * f
-            Bz[I] -= wz * f
+            D >= 2 && (By[I] -= wy * f)
+            D >= 3 && (Bz[I] -= wz * f)
         end
     end
     g.iplan * Bx
     B[1] .= real.(Bx)
-    g.iplan * By
-    B[2] .= real.(By)
-    g.iplan * Bz
-    B[3] .= real.(Bz)
+    if D >= 2
+        g.iplan * By
+        B[2] .= real.(By)
+    end
+    if D >= 3
+        g.iplan * Bz
+        B[3] .= real.(Bz)
+    end
     return B
 end
