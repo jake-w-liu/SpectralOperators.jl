@@ -34,6 +34,7 @@ struct FourierGrid{D,T,P,PI}
     cbuf::Array{Complex{T},D}          # scratch / forward transform of input
     tbuf::Array{Complex{T},D}          # scratch for per-axis multiply+inverse
     abuf::Array{Complex{T},D}          # complex accumulator
+    sbuf::Array{Complex{T},D}          # extra spectral scratch for multi-component operators
 end
 
 @inline function _require_fftw_float(::Type{T}, name::Symbol) where {T<:AbstractFloat}
@@ -80,9 +81,10 @@ function FourierGrid(n::Tuple{Int,Vararg{Int}}, L::Tuple{T,Vararg{T}}) where {T<
     cbuf = zeros(Complex{T}, n)
     tbuf = zeros(Complex{T}, n)
     abuf = zeros(Complex{T}, n)
+    sbuf = zeros(Complex{T}, n)
     plan = plan_fft!(cbuf)
     iplan = plan_ifft!(cbuf)
-    FourierGrid{D,T,typeof(plan),typeof(iplan)}(n, L, dx, midx, kfull, ik, kvec, plan, iplan, cbuf, tbuf, abuf)
+    FourierGrid{D,T,typeof(plan),typeof(iplan)}(n, L, dx, midx, kfull, ik, kvec, plan, iplan, cbuf, tbuf, abuf, sbuf)
 end
 
 @inline function _require_grid_array(name::Symbol, a::AbstractArray, g::FourierGrid{D,T}) where {D,T}

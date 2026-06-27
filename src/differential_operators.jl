@@ -53,6 +53,31 @@ end
     return acc
 end
 
+@inline function _forward_field!(
+    dst::AbstractArray{Complex{T},D},
+    field::AbstractArray{T,D},
+    g::FourierGrid{D,T},
+) where {D,T}
+    dst .= field
+    g.plan * dst
+    return dst
+end
+
+@inline function _curl_component_store!(
+    dst::AbstractArray{Complex{T},D},
+    plus_hat::AbstractArray{Complex{T},D},
+    plus_ik::Vector{Complex{T}},
+    plus_axis::Int,
+    minus_hat::AbstractArray{Complex{T},D},
+    minus_ik::Vector{Complex{T}},
+    minus_axis::Int,
+) where {D,T}
+    @inbounds for I in CartesianIndices(dst)
+        dst[I] = plus_hat[I] * plus_ik[I[plus_axis]] - minus_hat[I] * minus_ik[I[minus_axis]]
+    end
+    return dst
+end
+
 """
     deriv!(out, f, g, j)
 
@@ -167,8 +192,7 @@ function curl!(
         out[3] .= real.(g.abuf)
         return out
     elseif D == 2
-        g.cbuf .= A[3]
-        g.plan * g.cbuf
+        _forward_field!(g.cbuf, A[3], g)
         _apply_ik_store!(g.tbuf, g.cbuf, g.ik[2], 2)
         g.iplan * g.tbuf
         out[1] .= real.(g.tbuf)
@@ -182,24 +206,24 @@ function curl!(
         out[3] .= real.(g.abuf)
         return out
     end
-    # (curl A)_x = ∂_y A_z − ∂_z A_y
-    fill!(g.abuf, zero(Complex{T}))
-    D >= 2 && _accum_deriv!(g.abuf, A[3], g, 2, o)
-    D >= 3 && _accum_deriv!(g.abuf, A[2], g, 3, m)
-    g.iplan * g.abuf
-    out[1] .= real.(g.abuf)
-    # (curl A)_y = ∂_z A_x − ∂_x A_z
-    fill!(g.abuf, zero(Complex{T}))
-    D >= 3 && _accum_deriv!(g.abuf, A[1], g, 3, o)
-    _accum_deriv!(g.abuf, A[3], g, 1, m)
-    g.iplan * g.abuf
-    out[2] .= real.(g.abuf)
-    # (curl A)_z = ∂_x A_y − ∂_y A_x
-    fill!(g.abuf, zero(Complex{T}))
-    _accum_deriv!(g.abuf, A[2], g, 1, o)
-    D >= 2 && _accum_deriv!(g.abuf, A[1], g, 2, m)
-    g.iplan * g.abuf
-    out[3] .= real.(g.abuf)
+    _forward_field!(g.cbuf, A[1], g)
+    _forward_field!(g.tbuf, A[2], g)
+    _forward_field!(g.abuf, A[3], g)
+
+    # (curl A)_x = ∂_y A_z - ∂_z A_y
+    _curl_component_store!(g.sbuf, g.abuf, g.ik[2], 2, g.tbuf, g.ik[3], 3)
+    g.iplan * g.sbuf
+    out[1] .= real.(g.sbuf)
+
+    # (curl A)_y = ∂_z A_x - ∂_x A_z
+    _curl_component_store!(g.sbuf, g.cbuf, g.ik[3], 3, g.abuf, g.ik[1], 1)
+    g.iplan * g.sbuf
+    out[2] .= real.(g.sbuf)
+
+    # (curl A)_z = ∂_x A_y - ∂_y A_x
+    _curl_component_store!(g.sbuf, g.tbuf, g.ik[1], 1, g.cbuf, g.ik[2], 2)
+    g.iplan * g.sbuf
+    out[3] .= real.(g.sbuf)
     return out
 end
 
