@@ -15,16 +15,16 @@ end
 Apply an exponential spectral low-pass filter to `field` in place. Each Fourier
 mode is multiplied by the transfer function
 
-    σ(k) = exp( -α · (|k| / k_max)^(2p) ),
+    σ(k) = exp( -α · max_d(|k_d| / k_max_d)^(2p) ),
 
-where `|k| = sqrt(Σ_d k_d²)` is the mode's wavenumber magnitude and
-`k_max = sqrt(Σ_d k_max_d²)` with `k_max_d = 2π·(n_d÷2)/L_d`. Low-|k| modes are
-left essentially unchanged (σ → 1), modes near the Nyquist boundary are strongly
-damped, and the `k = 0` mean is preserved exactly (σ(0)=1).
+where `k_max_d = 2π·(n_d÷2)/L_d`. Low-|k| modes are left essentially unchanged
+(σ → 1), modes near the Nyquist boundary on any axis are strongly damped, and
+the `k = 0` mean is preserved exactly (σ(0)=1).
 
 Larger `α` damps harder; larger `p` makes the filter sharper (closer to a brick
-wall). Defaults `α=36, p=8` give σ ≈ e^{-36} ≈ 2.3e-16 at the corner of k-space,
-i.e. machine-zero damping of the highest mode while barely touching low modes.
+wall). Defaults `α=36, p=8` give σ ≈ e^{-36} ≈ 2.3e-16 for modes that reach the
+Nyquist boundary on any axis, i.e. machine-zero damping of the highest modes
+while barely touching low modes.
 Returns `field`.
 """
 function exp_filter!(
@@ -37,27 +37,23 @@ function exp_filter!(
     p >= 1 || throw(ArgumentError("p must be ≥ 1"))
     α >= 0 || throw(ArgumentError("α must be ≥ 0"))
     αT = T(α)
-    # k_max² = Σ_d k_max_d²  (squared corner wavenumber). All axes have n>0.
-    kmax2 = zero(T)
-    @inbounds for d = 1:D
-        km = _kmax_axis(g.n[d], g.L[d])
-        kmax2 += km * km
-    end
+    kmax = ntuple(d -> _kmax_axis(g.n[d], g.L[d]), D)
     g.cbuf .= field
     g.plan * g.cbuf
     @inbounds for I in CartesianIndices(g.cbuf)
-        t = Tuple(I)
-        k2 = zero(T)
+        ratio2 = zero(T)
         for d = 1:D
-            kk = _mode_wavenumber(t[d] - 1, g.n[d], g.L[d])
-            k2 += kk * kk
+            km = kmax[d]
+            if km > 0
+                kk = g.kfull[d][I[d]]
+                ratio2 = max(ratio2, (kk * kk) / (km * km))
+            end
         end
-        if k2 == 0 || kmax2 == 0
-            # σ(0) = 1 exactly; degenerate kmax2==0 (n==1 everywhere) ⇒ no damping.
+        if ratio2 == 0
+            # σ(0) = 1 exactly; degenerate all-singleton grids have no damping.
             continue
         end
-        ratio2 = k2 / kmax2                      # (|k|/k_max)²  ∈ (0,1]
-        σ = exp(-αT * ratio2^Int(p))             # (ratio2)^p = (|k|/k_max)^{2p}
+        σ = exp(-αT * ratio2^Int(p))             # (ratio2)^p = max_d(|k_d|/kmax_d)^{2p}
         g.cbuf[I] *= σ
     end
     g.iplan * g.cbuf
@@ -68,23 +64,20 @@ end
 """
     dealias_two_thirds!(field::Array{T,D}, g::FourierGrid{D,T})
 
-Apply Orszag's 2/3 de-aliasing rule in place: zero every Fourier mode whose
-per-axis wavenumber exceeds `(2/3)·k_max_d` on ANY axis, where
-`k_max_d = 2π·(n_d÷2)/L_d`. This removes the highest one-third of modes on each
-axis so that a single quadratic nonlinearity cannot alias energy back into the
-retained band. The `k = 0` mean is preserved (it is well below the cutoff).
-Returns `field`.
+Apply Orszag's 2/3 de-aliasing rule in place: retain only integer Fourier modes
+with `3*abs(m_d) < n_d` on every axis, and zero the rest. The strict boundary is
+important when `n_d` is divisible by 3: retaining `abs(m_d) == n_d/3` lets the
+quadratic self-interaction alias back into the retained band. The `k = 0` mean is
+preserved. Returns `field`.
 """
 function dealias_two_thirds!(field::AbstractArray{T,D}, g::FourierGrid{D,T}) where {T,D}
     _require_grid_array(:field, field, g)
-    cuts = ntuple(d -> T(2) / T(3) * _kmax_axis(g.n[d], g.L[d]), D)
     g.cbuf .= field
     g.plan * g.cbuf
     @inbounds for I in CartesianIndices(g.cbuf)
-        t = Tuple(I)
         ok = true
         for d = 1:D
-            ok &= abs(_mode_wavenumber(t[d] - 1, g.n[d], g.L[d])) <= cuts[d]
+            ok &= 3 * abs(g.midx[d][I[d]]) < g.n[d]
         end
         ok || (g.cbuf[I] = zero(Complex{T}))
     end
@@ -183,11 +176,6 @@ end
 # line). All other axes are looped over via CartesianIndices of the complement.
 function _binomial_pass_axis!(field::Array{T,D}, j::Int, buf::Vector{T}) where {T,D}
     N = size(field, j)
-    if N < 3
-        # With fewer than 3 points along an axis the periodic 3-point stencil
-        # folds onto itself; the constant-preserving limit is the identity.
-        return field
-    end
     q = T(1) / T(4)
     half = T(2) * q                      # = 1/2, weight on the centre (2/4)
     # Iterate over every line parallel to axis j. The set of lines is indexed by

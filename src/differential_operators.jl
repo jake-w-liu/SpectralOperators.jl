@@ -127,6 +127,7 @@ function curl!(
     A::Tuple{Vararg{AbstractArray{T,D},3}},
     g::FourierGrid{D,T},
 ) where {D,T}
+    D <= 3 || throw(ArgumentError("curl! supports spatial dimension D ≤ 3; got $D"))
     for c = 1:3
         _require_grid_array(:output, c, out[c], g)
         _require_grid_array(:input, c, A[c], g)
@@ -174,17 +175,9 @@ function laplacian!(out::AbstractArray{T,D}, f::AbstractArray{T,D}, g::FourierGr
     g.cbuf .= f
     g.plan * g.cbuf
     @inbounds for I in CartesianIndices(g.cbuf)
-        t = Tuple(I)
         k2 = zero(T)
         for d = 1:D
-            # Nyquist-INCLUSIVE wavenumber: ∇² is an EVEN derivative, so the
-            # Nyquist mode must get −k_nyq². g.kvec zeroes it (correct for the ODD
-            # first-derivative ik), which would silently drop ∇² of the highest
-            # mode — exactly the mode hyperresistivity/diffusion must damp.
-            N = g.n[d]
-            m = t[d] - 1
-            mp = m <= N ÷ 2 ? m : m - N
-            kk = T(2π) * mp / g.L[d]
+            kk = g.kfull[d][I[d]]
             k2 += kk * kk
         end
         g.cbuf[I] *= -k2

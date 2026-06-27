@@ -8,6 +8,7 @@ B̂ ← (I − k kᵀ/k²) B̂ for k≠0, leaving the k=0 mean untouched. After 
 the discrete divergence (same wavenumbers) is zero to roundoff.
 """
 function project_divfree!(B::Tuple{Vararg{AbstractArray{T,D},3}}, g::FourierGrid{D,T}) where {D,T}
+    D <= 3 || throw(ArgumentError("project_divfree! supports spatial dimension D ≤ 3; got $D"))
     for c = 1:3
         _require_grid_array(:component, c, B[c], g)
     end

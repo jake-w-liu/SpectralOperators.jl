@@ -25,6 +25,8 @@ struct FourierGrid{D,T,P,PI}
     n::NTuple{D,Int}
     L::NTuple{D,T}
     dx::NTuple{D,T}
+    midx::NTuple{D,Vector{Int}}        # signed integer Fourier mode per axis
+    kfull::NTuple{D,Vector{T}}         # real k per axis, Nyquist included (even derivatives / filters)
     ik::NTuple{D,Vector{Complex{T}}}   # i*k per axis, Nyquist zeroed (1st-deriv multiplier)
     kvec::NTuple{D,Vector{T}}          # real k per axis, Nyquist zeroed (projection geometry)
     plan::P                            # in-place forward FFT over all dims
@@ -40,13 +42,27 @@ function FourierGrid(n::Tuple{Int,Vararg{Int}}, L::Tuple{T,Vararg{T}}) where {T<
     all(>(0), n) || throw(ArgumentError("grid sizes must be positive"))
     all(>(0), L) || throw(ArgumentError("domain lengths must be positive"))
     dx = ntuple(d -> L[d] / n[d], D)
-    kvec = ntuple(D) do d
+    midx = ntuple(D) do d
         N = n[d]
-        k = Vector{T}(undef, N)
+        modes = Vector{Int}(undef, N)
         for m = 0:N-1
             mp = m <= N ÷ 2 ? m : m - N          # signed mode index
-            k[m+1] = T(2π) * mp / L[d]
+            modes[m+1] = mp
         end
+        modes
+    end
+    kfull = ntuple(D) do d
+        N = n[d]
+        k = Vector{T}(undef, N)
+        scale = T(2π) / L[d]
+        @inbounds for i = 1:N
+            k[i] = scale * midx[d][i]
+        end
+        k
+    end
+    kvec = ntuple(D) do d
+        N = n[d]
+        k = copy(kfull[d])
         if iseven(N)
             k[N÷2+1] = zero(T)               # zero Nyquist for first derivative
         end
@@ -58,7 +74,7 @@ function FourierGrid(n::Tuple{Int,Vararg{Int}}, L::Tuple{T,Vararg{T}}) where {T<
     abuf = zeros(Complex{T}, n)
     plan = plan_fft!(cbuf)
     iplan = plan_ifft!(cbuf)
-    FourierGrid{D,T,typeof(plan),typeof(iplan)}(n, L, dx, ik, kvec, plan, iplan, cbuf, tbuf, abuf)
+    FourierGrid{D,T,typeof(plan),typeof(iplan)}(n, L, dx, midx, kfull, ik, kvec, plan, iplan, cbuf, tbuf, abuf)
 end
 
 @inline function _require_grid_array(name::Symbol, a::AbstractArray, g::FourierGrid)

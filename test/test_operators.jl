@@ -91,6 +91,31 @@ end
     end
 end
 
+@testset "closed-form 3D curl oracle" begin
+    T = Float64
+    n = (16, 16, 16)
+    g = FourierGrid(n, ntuple(_ -> T(2π), 3))
+    A = ntuple(_ -> zeros(T, n...), 3)
+    exact = ntuple(_ -> zeros(T, n...), 3)
+    @inbounds for I in CartesianIndices(A[1])
+        i, j, k = Tuple(I)
+        x = (i - 1) * g.dx[1]
+        y = (j - 1) * g.dx[2]
+        z = (k - 1) * g.dx[3]
+        A[1][I] = sin(y)
+        A[2][I] = sin(z)
+        A[3][I] = sin(x)
+        exact[1][I] = -cos(z)
+        exact[2][I] = -cos(x)
+        exact[3][I] = -cos(y)
+    end
+    out = ntuple(_ -> similar(A[1]), 3)
+    curl!(out, A, g)
+    for c = 1:3
+        @test norm(out[c] .- exact[c]) / norm(exact[c]) < 1e-11
+    end
+end
+
 @testset "OP-003 divergence-free projection" begin
     Random.seed!(2)
     for T in (Float64, Float32)
@@ -247,6 +272,11 @@ end
     @test_throws ArgumentError project_divfree!((P[1], P[1], P[3]), g)
     @test_throws DimensionMismatch project_divfree!((zeros(T, 7, 8), P[2], P[3]), g)
     @test_throws DimensionMismatch project_divfree!((offset_f, P[2], P[3]), g)
+    g4 = FourierGrid((4, 4, 4, 4), ntuple(_ -> T(1), 4))
+    A4 = ntuple(_ -> zeros(T, g4.n...), 3)
+    B4 = ntuple(_ -> zeros(T, g4.n...), 3)
+    @test_throws ArgumentError curl!(B4, A4, g4)
+    @test_throws ArgumentError project_divfree!(B4, g4)
 
     @test_throws ArgumentError SBP1D(2, T(1))
     @test_throws ArgumentError SBP1D(4, zero(T))
@@ -281,6 +311,14 @@ end
     @test_throws ArgumentError binomial_smooth!(copy(f), g, sw; passes = -1)
     @test_throws DimensionMismatch binomial_smooth!(zeros(T, 7, 8), g, sw; passes = 1)
     @test_throws DimensionMismatch binomial_smooth!(copy(f), g, BinomialSmoothWorkspace{T}(zeros(T, 1)); passes = 1)
+end
+
+@testset "binomial smoothing N=2 periodic stencil" begin
+    T = Float64
+    g = FourierGrid((2,), (T(2π),))
+    f = T[1, -1]
+    binomial_smooth!(f, g, BinomialSmoothWorkspace(g); passes = 1)
+    @test maximum(abs, f) < 10eps(T)
 end
 
 @testset "operators allocate nothing in steady state" begin

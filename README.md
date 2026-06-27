@@ -3,9 +3,9 @@
 Reusable Julia operators for periodic Fourier grids and mixed SBP/Fourier
 discretizations.
 
-This package is the shared numerical-operator layer used by the sibling
-`PSTD3.jl` and `HybridPSTD.jl` packages in this workspace. It has no dependency
-on either solver package and does not use solver-global mutable state.
+<!-- This package is the shared numerical-operator layer used by the sibling
+`FourierPSTD.jl` and `HybridPlasmaPIC.jl` packages in this workspace. It has no dependency
+on either solver package and does not use solver-global mutable state. -->
 
 ## Features
 
@@ -27,8 +27,6 @@ using Pkg
 Pkg.develop(path = "/path/to/SpectralOperators.jl")
 ```
 
-In the workspace packages, `PSTD3.jl` and `HybridPSTD.jl` currently refer to this
-package through local `[sources]` entries in their `Project.toml` files.
 
 ## Quick Start
 

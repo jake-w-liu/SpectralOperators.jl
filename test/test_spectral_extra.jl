@@ -83,6 +83,19 @@ end
     @test norm(f .- f0) / norm(f0) < 1e-9     # low mode preserved in 2D
 end
 
+@testset "exp_filter! damps axis-Nyquist modes in multiple dimensions" begin
+    T = Float64
+    n = (64, 64)
+    g = FourierGrid(n, (T(2π), T(2π)))
+    f = Array{T,2}(undef, n)
+    @inbounds for I in CartesianIndices(f)
+        i, _ = Tuple(I)
+        f[I] = cos((n[1] ÷ 2) * (i - 1) * g.dx[1])
+    end
+    exp_filter!(f, g)
+    @test maximum(abs, f) < 1e-10
+end
+
 @testset "dealias_two_thirds! masks high-k, keeps low-k" begin
     for T in (Float64, Float32)
         n = 48                                 # Nyquist mode = 24; 2/3 cutoff = 16
@@ -98,6 +111,13 @@ end
         fl = copy(f_lo)
         dealias_two_thirds!(fl, g2)
         @test isapprox(maximum(abs, fl), maximum(abs, f_lo); rtol = (T == Float64 ? 1e-10 : 1e-4))
+
+        # Exact N/3 boundary mode m=16 must be zeroed; otherwise cos(16x)^2
+        # aliases back to retained mode -16 on an N=48 grid.
+        g_boundary, f_boundary = cosine_mode(T, n, 16)
+        fb = copy(f_boundary)
+        dealias_two_thirds!(fb, g_boundary)
+        @test maximum(abs, fb) < (T == Float64 ? 1e-12 : 1e-4) * maximum(abs, f_boundary)
 
         # k = 0 preserved.
         c = fill(T(2.0), n)

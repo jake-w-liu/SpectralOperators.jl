@@ -66,8 +66,14 @@ function sbp_deriv_x!(out::AbstractMatrix{T}, f::AbstractMatrix{T}, s::SBP1D{T})
     axes(out) == axes(f) || throw(DimensionMismatch("output axes $(axes(out)) do not match input axes $(axes(f))"))
     _check_sbp_axis(:input_first_axis, axes(f, 1), s.n)
     Base.mightalias(out, f) && throw(ArgumentError("sbp_deriv_x! output must not alias input"))
+    n = s.n
+    dx = s.dx
     @inbounds for j in axes(f, 2)
-        sbp_deriv!(view(out, :, j), view(f, :, j), s)
+        out[1, j] = (f[2, j] - f[1, j]) / dx
+        for i = 2:n-1
+            out[i, j] = (f[i+1, j] - f[i-1, j]) / (2dx)
+        end
+        out[n, j] = (f[n, j] - f[n-1, j]) / dx
     end
     return out
 end
