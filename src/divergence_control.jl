@@ -19,15 +19,15 @@ function project_divfree!(B::Tuple{Vararg{AbstractArray{T,D},3}}, g::FourierGrid
             throw(ArgumentError("project_divfree! components must not alias each other"))
     end
     Bx = g.cbuf
+    By = g.tbuf
+    Bz = g.abuf
     Bx .= B[1]
     g.plan * Bx
     if D >= 2
-        By = g.tbuf
         By .= B[2]
         g.plan * By
     end
     if D >= 3
-        Bz = g.abuf
         Bz .= B[3]
         g.plan * Bz
     end
