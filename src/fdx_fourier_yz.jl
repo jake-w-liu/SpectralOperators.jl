@@ -10,7 +10,13 @@
 # The current implementation is the 2nd-order SBP-(2,1) operator used to verify
 # the mixed scheme; higher-order SBP closures can be added as separate types.
 
-"2nd-order SBP first-derivative operator on `n` nodes over [0,L] (endpoints included)."
+"""
+    SBP1D(n, L)
+
+Second-order SBP first-derivative operator on `n` nodes over `[0,L]` (endpoints
+included). The spacing, inverse-spacing coefficient, and diagonal norm weights
+must be finite and representable in the floating-point type of `L`.
+"""
 struct SBP1D{T}
     n::Int
     dx::T
@@ -22,9 +28,18 @@ function SBP1D(n::Integer, L::T) where {T<:AbstractFloat}
     isfinite(L) && L > zero(T) ||
         throw(ArgumentError("SBP domain length must be positive and finite"))
     dx = L / (n - 1)
+    half_dx = dx / T(2)
+    inv_dx = one(T) / dx
+    isfinite(dx) && dx > zero(T) &&
+        isfinite(half_dx) && half_dx > zero(T) &&
+        isfinite(inv_dx) ||
+        throw(ArgumentError(
+            "SBP domain length $L and size $n produce coefficients or norm " *
+            "weights that are not finite and representable as $T",
+        ))
     H = fill(dx, n)
-    H[1] = dx / 2
-    H[n] = dx / 2
+    H[1] = half_dx
+    H[n] = half_dx
     return SBP1D{T}(n, dx, H)
 end
 
@@ -97,7 +112,9 @@ end
     FourierDerivYWorkspace(f, Ly)
 
 Reusable FFT workspace for allocation-free [`fourier_deriv_y!`](@ref) calls on
-`nx × ny` matrices with periodic length `Ly` along the second dimension.
+`nx × ny` matrices with periodic length `Ly` along the second dimension. The
+represented transverse Fourier wavenumbers must be finite in the workspace
+element type.
 """
 struct FourierDerivYWorkspace{T,P,PI}
     nx::Int
@@ -123,6 +140,7 @@ function _fourier_deriv_y_workspace(nx::Integer, ny::Integer, Ly::T) where {T<:A
     Ly = _positive_length(T, Ly, :Ly)
     nxi = Int(nx)
     nyi = Int(ny)
+    _checked_fourier_scale(T, nyi, Ly, :Ly)
     ky = Vector{T}(undef, nyi)
     for m = 0:nyi-1
         mp = m <= nyi ÷ 2 ? m : m - nyi

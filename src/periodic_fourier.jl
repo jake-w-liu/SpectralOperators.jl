@@ -19,7 +19,8 @@
 
 Collocated periodic Fourier grid in `D` dimensions with `n[d]` points and
 physical length `L[d]` per axis. Precomputes wavenumbers, in-place FFT plans,
-and complex scratch buffers.
+and complex scratch buffers. Each derived spacing and representable Fourier
+wavenumber must be finite in the grid's floating-point element type.
 """
 struct FourierGrid{D,T,P,PI}
     n::NTuple{D,Int}
@@ -43,6 +44,18 @@ end
     return nothing
 end
 
+@inline function _checked_fourier_scale(::Type{T}, N::Int, L::T, name::Symbol) where {T<:AbstractFloat}
+    N == 1 && return zero(T)
+    scale = T(2π) / L
+    kmax = scale * T(N ÷ 2)
+    isfinite(scale) && scale > zero(T) && isfinite(kmax) && kmax > zero(T) ||
+        throw(ArgumentError(
+            "$(name)=$L and size $N produce Fourier wavenumbers that are not " *
+            "finite and representable as $T",
+        ))
+    return scale
+end
+
 function FourierGrid(n::Tuple{Int,Vararg{Int}}, L::Tuple{T,Vararg{T}}) where {T<:AbstractFloat}
     _require_fftw_float(T, :FourierGrid)
     D = length(n)
@@ -51,6 +64,9 @@ function FourierGrid(n::Tuple{Int,Vararg{Int}}, L::Tuple{T,Vararg{T}}) where {T<
     all(l -> isfinite(l) && l > zero(T), L) ||
         throw(ArgumentError("domain lengths must be positive and finite"))
     dx = ntuple(d -> L[d] / n[d], D)
+    all(d -> isfinite(dx[d]) && dx[d] > zero(T), 1:D) ||
+        throw(ArgumentError("grid spacings must be positive, finite, and representable as $T"))
+    kscale = ntuple(d -> _checked_fourier_scale(T, n[d], L[d], Symbol("L[$d]")), D)
     midx = ntuple(D) do d
         N = n[d]
         modes = Vector{Int}(undef, N)
@@ -63,7 +79,7 @@ function FourierGrid(n::Tuple{Int,Vararg{Int}}, L::Tuple{T,Vararg{T}}) where {T<
     kfull = ntuple(D) do d
         N = n[d]
         k = Vector{T}(undef, N)
-        scale = T(2π) / L[d]
+        scale = kscale[d]
         @inbounds for i = 1:N
             k[i] = scale * midx[d][i]
         end
