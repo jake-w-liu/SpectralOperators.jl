@@ -97,20 +97,42 @@ small primes 2, 3, 5 and 7 (the radices FFTW handles most efficiently). For
 function fft_friendly_size(n::Integer)
     n <= 1 && return 1
     n <= typemax(Int) || throw(OverflowError("no Int fft-friendly size can be >= $n"))
-    is7smooth(m::Int) = begin
-        for p in (2, 3, 5, 7)
-            while m % p == 0
-                m ÷= p
+
+    # Enumerate exponent combinations 2^a * 3^b * 5^c * 7^d instead of
+    # scanning every integer above n.  The latter becomes effectively
+    # non-terminating above the largest representable 7-smooth Int, where the
+    # final gap is tens of trillions on a 64-bit platform.
+    target = Int(n)
+    limit = typemax(Int)
+    best = 0
+    p2 = 1
+    while best == 0 || p2 < best
+        p3 = p2
+        while best == 0 || p3 < best
+            p5 = p3
+            while best == 0 || p5 < best
+                p7 = p5
+                while p7 < target
+                    p7 > limit ÷ 7 && (p7 = 0; break)
+                    p7 *= 7
+                end
+                if p7 != 0 && (best == 0 || p7 < best)
+                    best = p7
+                end
+
+                p5 > limit ÷ 5 && break
+                p5 *= 5
             end
+
+            p3 > limit ÷ 3 && break
+            p3 *= 3
         end
-        m == 1
+
+        p2 > limit ÷ 2 && break
+        p2 *= 2
     end
-    c = Int(n)
-    while !is7smooth(c)
-        c == typemax(Int) && throw(OverflowError("no Int fft-friendly size can be >= $n"))
-        c += 1
-    end
-    return c
+    best != 0 || throw(OverflowError("no Int fft-friendly size can be >= $n"))
+    return best
 end
 
 """

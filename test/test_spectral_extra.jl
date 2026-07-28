@@ -168,6 +168,14 @@ end
     @test fft_friendly_size(2) == 2
     @test_throws OverflowError fft_friendly_size(typemax(Int))
     @test_throws OverflowError fft_friendly_size(big(typemax(Int)) + 1)
+    # The old integer-by-integer search required 65,051,148,750,847 iterations
+    # here on 64-bit systems (3,330,622 on 32-bit systems) before discovering
+    # that no representable result exists.
+    largest_int_smooth = Sys.WORD_SIZE == 64 ?
+        big"9223306985706024960" :
+        big"2144153025"
+    @test fft_friendly_size(largest_int_smooth) == Int(largest_int_smooth)
+    @test_throws OverflowError fft_friendly_size(largest_int_smooth + 1)
     # Exhaustive property check: result ≥ n, 7-smooth, and minimal.
     for n = 1:2000
         r = fft_friendly_size(n)
