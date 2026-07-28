@@ -1,7 +1,7 @@
 name = "SpectralOperators"
 uuid = "8acda80e-a78e-4bfe-a2a4-4b14f9bf88bd"
 authors = ["Jake W. Liu"]
-version = "0.1.0"
+version = "0.1.1"
 
 [deps]
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
