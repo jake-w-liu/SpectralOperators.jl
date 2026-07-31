@@ -231,11 +231,38 @@ end
     laplacian!(out, f, g)
 
 Spectral Laplacian ∇²f = −|k|² f̂ (periodic). Used for hyperresistivity and
-diffusion terms.
+diffusion terms. Throws an `ArgumentError` before mutating `out` when the
+largest squared grid wavenumber is not representable in the grid element type.
 """
+@inline function _require_representable_laplacian(g::FourierGrid{D,T}) where {D,T}
+    scale = zero(T)
+    @inbounds for d = 1:D
+        scale = max(scale, maximum(abs, g.kfull[d]))
+    end
+    iszero(scale) && return nothing
+
+    scaled_k2max = zero(T)
+    @inbounds for d = 1:D
+        axismax = maximum(abs, g.kfull[d])
+        ratio = axismax / scale
+        scaled_k2max += ratio * ratio
+    end
+    # Use a strict bound so rounding in the componentwise square-and-sum below
+    # cannot cross floatmax(T).
+    scale < sqrt(floatmax(T) / scaled_k2max) ||
+        throw(
+            ArgumentError(
+                "squared Laplacian wavenumbers are not representable as $T; " *
+                "rescale the domain or use a wider floating-point type",
+            ),
+        )
+    return nothing
+end
+
 function laplacian!(out::AbstractArray{T,D}, f::AbstractArray{T,D}, g::FourierGrid{D,T}) where {D,T}
     _require_grid_array(:input, f, g)
     _require_grid_array(:output, out, g)
+    _require_representable_laplacian(g)
     g.cbuf .= f
     g.plan * g.cbuf
     @inbounds for I in CartesianIndices(g.cbuf)

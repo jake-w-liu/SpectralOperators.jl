@@ -406,6 +406,34 @@ end
     @test maximum(abs, divB) < 10eps(T)
 end
 
+@testset "dimensionless spectral operations remain stable at extreme Float32 scales" begin
+    field = Float32[1, 0, -1, 0] # pure resolved m=±1 mode
+    filtered_reference = copy(field)
+    exp_filter!(filtered_reference, FourierGrid((4,), (1.0f0,)))
+
+    for L in (1.0f38, 1.0f-37)
+        g = FourierGrid((4,), (L,))
+
+        B = (copy(field), zeros(Float32, 4), zeros(Float32, 4))
+        project_divfree!(B, g)
+        @test maximum(abs, B[1]) <= 8eps(Float32)
+
+        filtered = copy(field)
+        exp_filter!(filtered, g)
+        @test all(isfinite, filtered)
+        @test filtered ≈ filtered_reference rtol = 8eps(Float32)
+
+        lap = fill(7.0f0, 4)
+        if L < one(Float32)
+            @test_throws ArgumentError laplacian!(lap, zeros(Float32, 4), g)
+            @test lap == fill(7.0f0, 4) # rejected before output mutation
+        else
+            laplacian!(lap, zeros(Float32, 4), g)
+            @test all(iszero, lap)
+        end
+    end
+end
+
 @testset "project_divfree! preserves absent-axis components" begin
     Random.seed!(4)
     for T in (Float64, Float32)

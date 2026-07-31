@@ -38,15 +38,22 @@ function project_divfree!(B::Tuple{Vararg{AbstractArray{T,D},3}}, g::FourierGrid
         wx = kx[I[1]]
         wy = D >= 2 ? ky[I[2]] : zero(T)
         wz = D >= 3 ? kz[I[3]] : zero(T)
-        k2 = wx * wx + wy * wy + wz * wz
-        if k2 > 0
-            f = wx * Bx[I]
-            D >= 2 && (f += wy * By[I])
-            D >= 3 && (f += wz * Bz[I])
-            f /= k2
-            Bx[I] -= wx * f
-            D >= 2 && (By[I] -= wy * f)
-            D >= 3 && (Bz[I] -= wz * f)
+        scale = max(abs(wx), abs(wy), abs(wz))
+        if scale > zero(T)
+            # Normalize before forming |k|². Squaring a finite, representable
+            # Float32 wavenumber can still underflow or overflow on very large or
+            # small physical domains; the projection itself is dimensionless.
+            sx = wx / scale
+            sy = wy / scale
+            sz = wz / scale
+            s2 = sx * sx + sy * sy + sz * sz
+            f = sx * Bx[I]
+            D >= 2 && (f += sy * By[I])
+            D >= 3 && (f += sz * Bz[I])
+            f /= s2
+            Bx[I] -= sx * f
+            D >= 2 && (By[I] -= sy * f)
+            D >= 3 && (Bz[I] -= sz * f)
         end
     end
     g.iplan * Bx

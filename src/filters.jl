@@ -6,9 +6,6 @@
     return T(2π) * mp / L
 end
 
-# Per-axis maximum representable |k| = 2π·(N÷2)/L.
-@inline _kmax_axis(N::Int, L::T) where {T<:AbstractFloat} = T(2π) * (N ÷ 2) / L
-
 """
     exp_filter!(field::Array{T,D}, g::FourierGrid{D,T}; α=36, p=8)
 
@@ -37,16 +34,18 @@ function exp_filter!(
     p >= 1 || throw(ArgumentError("p must be ≥ 1"))
     α >= 0 || throw(ArgumentError("α must be ≥ 0"))
     αT = T(α)
-    kmax = ntuple(d -> _kmax_axis(g.n[d], g.L[d]), D)
     g.cbuf .= field
     g.plan * g.cbuf
     @inbounds for I in CartesianIndices(g.cbuf)
         ratio2 = zero(T)
         for d = 1:D
-            km = kmax[d]
-            if km > 0
-                kk = g.kfull[d][I[d]]
-                ratio2 = max(ratio2, (kk * kk) / (km * km))
+            max_mode = g.n[d] ÷ 2
+            if max_mode > 0
+                # |k|/kmax is exactly the integer mode ratio |m|/(N÷2).
+                # Computing k²/kmax² can become 0/0 or Inf/Inf in Float32
+                # even when both wavenumbers themselves are representable.
+                ratio = T(abs(g.midx[d][I[d]])) / T(max_mode)
+                ratio2 = max(ratio2, ratio * ratio)
             end
         end
         if ratio2 == 0
