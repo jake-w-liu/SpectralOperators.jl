@@ -56,7 +56,10 @@ deriv!(out, f, g, 1)
 
 `FourierGrid` owns FFT plans and scratch arrays. Reuse it for repeated operator
 calls on the same grid shape and element type. FFT-backed operators support
-`Float32` and `Float64` fields.
+`Float32` and `Float64` fields, reject non-finite input values, and rescale
+finite near-range inputs when needed to keep unnormalized FFTs and spectral
+multipliers representable. Inputs whose nonzero dynamic range cannot survive
+that rescaling are rejected instead of being silently truncated to zero.
 
 ## Vector Operators
 

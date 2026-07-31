@@ -392,6 +392,13 @@ end
     @test_throws ArgumentError binomial_smooth!(copy(f), g, sw; passes = -1)
     @test_throws DimensionMismatch binomial_smooth!(zeros(T, 7, 8), g, sw; passes = 1)
     @test_throws DimensionMismatch binomial_smooth!(copy(f), g, BinomialSmoothWorkspace{T}(zeros(T, 1)); passes = 1)
+
+    aliased_field = collect(T, 1:8)
+    aliased_original = copy(aliased_field)
+    g1 = FourierGrid((8,), (T(2π),))
+    aliased_work = BinomialSmoothWorkspace{T}(aliased_field)
+    @test_throws ArgumentError binomial_smooth!(aliased_field, g1, aliased_work; passes = 1)
+    @test aliased_field == aliased_original
 end
 
 @testset "project_divfree! uses derivative-resolved Nyquist convention" begin
@@ -432,6 +439,131 @@ end
             @test all(iszero, lap)
         end
     end
+end
+
+@testset "extreme-scale spectral amplitudes remain representable" begin
+    # Although k^2 underflows in Float32, the Laplacian remains normal and
+    # representable when the coefficient is scaled before the second product.
+    L = 1.0f38
+    amplitude = 1.0f38
+    g = FourierGrid((4,), (L,))
+    f = Float32[amplitude, 0, -amplitude, 0]
+    out = similar(f)
+    laplacian!(out, f, g)
+    expected_peak = setprecision(256) do
+        k = 2 * big(pi) / BigFloat(L)
+        Float32(-(k * k) * BigFloat(amplitude))
+    end
+    @test !iszero(expected_peak)
+    @test isapprox(out, Float32[expected_peak, 0, -expected_peak, 0]; rtol = 2eps(Float32))
+
+    # This field is parallel to k=(1,1).  Each Fourier coefficient is finite,
+    # but their unscaled projection dot product exceeds floatmax(Float64).
+    n = (3, 3)
+    gp = FourierGrid(n, (2π, 2π))
+    high = 2.5e307
+    parallel = [high * cos(2π * ((i - 1) + (j - 1)) / 3) for i = 1:3, j = 1:3]
+    B = (copy(parallel), copy(parallel), zeros(n))
+    project_divfree!(B, gp)
+    @test all(all(isfinite, component) for component in B)
+    @test maximum(abs, B[1]) / high <= 32eps(Float64)
+    @test maximum(abs, B[2]) / high <= 32eps(Float64)
+end
+
+@testset "FFT-backed operators scale finite high-amplitude inputs" begin
+    for (T, high) in ((Float64, 1.0e308), (Float32, 1.0f38))
+        N = 16
+        g = FourierGrid((N,), (T(2π),))
+        uniform = fill(T(high), N)
+        out = similar(uniform)
+        tolerance = T(64) * eps(T)
+
+        deriv!(out, uniform, g, 1)
+        @test all(isfinite, out)
+        @test maximum(abs, out) / high <= tolerance
+
+        gradient!((out,), uniform, g)
+        @test all(isfinite, out)
+        @test maximum(abs, out) / high <= tolerance
+
+        divergence!(out, (uniform,), g)
+        @test all(isfinite, out)
+        @test maximum(abs, out) / high <= tolerance
+
+        curl_out = ntuple(_ -> similar(uniform), 3)
+        curl!(curl_out, (uniform, uniform, uniform), g)
+        @test all(all(isfinite, component) for component in curl_out)
+        @test maximum(maximum(abs, component) for component in curl_out) / high <= tolerance
+
+        laplacian!(out, uniform, g)
+        @test all(isfinite, out)
+        @test maximum(abs, out) / high <= tolerance
+
+        projected = (copy(uniform), copy(uniform), copy(uniform))
+        project_divfree!(projected, g)
+        @test all(all(isfinite, component) for component in projected)
+        @test all(isapprox(projected[c], uniform; rtol = tolerance) for c = 1:3)
+
+        filtered = copy(uniform)
+        exp_filter!(filtered, g)
+        @test all(isfinite, filtered)
+        @test isapprox(filtered, uniform; rtol = tolerance)
+
+        dealiased = copy(uniform)
+        dealias_two_thirds!(dealiased, g)
+        @test all(isfinite, dealiased)
+        @test isapprox(dealiased, uniform; rtol = tolerance)
+
+        transverse = fill(T(high), 2, N)
+        transverse_out = similar(transverse)
+        transverse_work = FourierDerivYWorkspace(transverse, T(2π))
+        fourier_deriv_y!(transverse_out, transverse, transverse_work)
+        @test all(isfinite, transverse_out)
+        @test maximum(abs, transverse_out) / high <= tolerance
+    end
+
+    g = FourierGrid((8,), (2π,))
+    poisoned = zeros(8)
+    poisoned[1] = Inf
+    sentinel = fill(7.0, 8)
+    @test_throws ArgumentError deriv!(sentinel, poisoned, g, 1)
+    @test sentinel == fill(7.0, 8)
+    @test_throws ArgumentError exp_filter!(poisoned, g)
+    @test isinf(poisoned[1])
+
+    # The forward transform is representable here, but the k and k^2 spectral
+    # products are not unless the input scale includes the operator gain.
+    N = 16
+    k = 100.0
+    L = 2π / k
+    x = (0:N-1) .* (L / N)
+    gk = FourierGrid((N,), (L,))
+    first_amplitude = 1e306
+    ffirst = first_amplitude .* sin.(k .* x)
+    first = similar(ffirst)
+    deriv!(first, ffirst, gk, 1)
+    @test all(isfinite, first)
+    @test isapprox(first, (first_amplitude * k) .* cos.(k .* x); rtol = 64eps())
+
+    second_amplitude = 1e304
+    fsecond = second_amplitude .* sin.(k .* x)
+    second = similar(fsecond)
+    laplacian!(second, fsecond, gk)
+    @test all(isfinite, second)
+    @test isapprox(second, -(second_amplitude * k^2) .* sin.(k .* x); rtol = 128eps())
+
+    # A common vector scale must not silently erase a nonzero component whose
+    # dynamic range cannot be represented after scaling.
+    gtiny = FourierGrid((4, 1), (2π, 1.0))
+    tiny = nextfloat(0.0)
+    mixed = (
+        fill(1e308, 4, 1),
+        reshape([tiny, 0.0, -tiny, 0.0], 4, 1),
+        zeros(4, 1),
+    )
+    mixed_before = copy.(mixed)
+    @test_throws ArgumentError project_divfree!(mixed, gtiny)
+    @test mixed == mixed_before
 end
 
 @testset "project_divfree! preserves absent-axis components" begin

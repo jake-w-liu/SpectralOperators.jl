@@ -170,7 +170,8 @@ function fourier_deriv_y!(out::Matrix{T}, f::Matrix{T}, work::FourierDerivYWorks
         throw(DimensionMismatch("input size $(size(f)) does not match workspace size $((work.nx, work.ny))"))
     size(out) == size(f) ||
         throw(DimensionMismatch("output size $(size(out)) does not match input size $(size(f))"))
-    work.cbuf .= f
+    gain = maximum(abs, work.ky)
+    input_scale = _prepare_fft_input!(work.cbuf, f, gain)
     work.plan * work.cbuf
     @inbounds for m = 1:work.ny
         ik = Complex{T}(zero(T), work.ky[m])
@@ -179,6 +180,6 @@ function fourier_deriv_y!(out::Matrix{T}, f::Matrix{T}, work::FourierDerivYWorks
         end
     end
     work.iplan * work.cbuf
-    out .= real.(work.cbuf)
+    _store_fft_output!(out, work.cbuf, input_scale)
     return out
 end

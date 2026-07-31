@@ -34,7 +34,7 @@ function exp_filter!(
     p >= 1 || throw(ArgumentError("p must be ≥ 1"))
     α >= 0 || throw(ArgumentError("α must be ≥ 0"))
     αT = T(α)
-    g.cbuf .= field
+    input_scale = _prepare_fft_input!(g.cbuf, field)
     g.plan * g.cbuf
     @inbounds for I in CartesianIndices(g.cbuf)
         ratio2 = zero(T)
@@ -56,7 +56,7 @@ function exp_filter!(
         g.cbuf[I] *= σ
     end
     g.iplan * g.cbuf
-    field .= real.(g.cbuf)
+    _store_fft_output!(field, g.cbuf, input_scale)
     return field
 end
 
@@ -71,7 +71,7 @@ preserved. Returns `field`.
 """
 function dealias_two_thirds!(field::AbstractArray{T,D}, g::FourierGrid{D,T}) where {T,D}
     _require_grid_array(:field, field, g)
-    g.cbuf .= field
+    input_scale = _prepare_fft_input!(g.cbuf, field)
     g.plan * g.cbuf
     @inbounds for I in CartesianIndices(g.cbuf)
         ok = true
@@ -81,7 +81,7 @@ function dealias_two_thirds!(field::AbstractArray{T,D}, g::FourierGrid{D,T}) whe
         ok || (g.cbuf[I] = zero(Complex{T}))
     end
     g.iplan * g.cbuf
-    field .= real.(g.cbuf)
+    _store_fft_output!(field, g.cbuf, input_scale)
     return field
 end
 
@@ -267,7 +267,8 @@ end
     binomial_smooth!(field, g, work::BinomialSmoothWorkspace; passes=1)
 
 Workspace-backed variant of [`binomial_smooth!`](@ref). Reuse `work` across
-calls on the same real element type to avoid allocating the line buffer.
+calls on the same real element type to avoid allocating the line buffer. The
+workspace buffer must not alias `field`.
 """
 function binomial_smooth!(
     field::Array{T,D},
@@ -282,6 +283,8 @@ function binomial_smooth!(
     buf = work.buf
     length(buf) >= maximum(g.n) ||
         throw(DimensionMismatch("workspace length $(length(buf)) is smaller than required $(maximum(g.n))"))
+    Base.mightalias(field, buf) &&
+        throw(ArgumentError("binomial_smooth! workspace must not alias the field"))
     for j = 1:D
         for _ = 1:passes
             _binomial_pass_axis!(field, j, buf)

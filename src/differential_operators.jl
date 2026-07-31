@@ -46,8 +46,9 @@ end
     g::FourierGrid{D,T},
     j::Int,
     s::T,
+    input_scale::T,
 ) where {D,T}
-    g.cbuf .= field
+    _copy_fft_input!(g.cbuf, field, input_scale)
     g.plan * g.cbuf
     _apply_ik_accum!(acc, g.cbuf, g.ik[j], j, s)
     return acc
@@ -57,8 +58,9 @@ end
     dst::AbstractArray{Complex{T},D},
     field::AbstractArray{T,D},
     g::FourierGrid{D,T},
+    input_scale::T,
 ) where {D,T}
-    dst .= field
+    _copy_fft_input!(dst, field, input_scale)
     g.plan * dst
     return dst
 end
@@ -93,11 +95,12 @@ function deriv!(
     1 <= j <= D || throw(ArgumentError("axis $j out of range 1:$D"))
     _require_grid_array(:input, f, g)
     _require_grid_array(:output, out, g)
-    g.cbuf .= f
+    gain = maximum(abs, g.kvec[j])
+    input_scale = _prepare_fft_input!(g.cbuf, f, gain)
     g.plan * g.cbuf
     _apply_ik_store!(g.tbuf, g.cbuf, g.ik[j], j)
     g.iplan * g.tbuf
-    out .= real.(g.tbuf)
+    _store_fft_output!(out, g.tbuf, input_scale)
     return out
 end
 
@@ -122,12 +125,13 @@ function gradient!(
         Base.mightalias(out[j], out[k]) &&
             throw(ArgumentError("gradient! output components must not alias each other"))
     end
-    g.cbuf .= f
+    gain = maximum(d -> maximum(abs, g.kvec[d]), 1:D)
+    input_scale = _prepare_fft_input!(g.cbuf, f, gain)
     g.plan * g.cbuf                      # cbuf = f̂, reused for every axis
     for j = 1:D
         _apply_ik_store!(g.tbuf, g.cbuf, g.ik[j], j)
         g.iplan * g.tbuf
-        out[j] .= real.(g.tbuf)
+        _store_fft_output!(out[j], g.tbuf, input_scale)
     end
     return out
 end
@@ -144,12 +148,15 @@ function divergence!(out::AbstractArray{T,D}, v, g::FourierGrid{D,T}) where {D,T
     for j = 1:D
         _require_grid_array(:input, j, v[j], g)
     end
+    gain = sum(d -> maximum(abs, g.kvec[d]), 1:D)
+    isfinite(gain) || throw(ArgumentError("divergence spectral multiplier bound is not representable as $T"))
+    input_scale = _fft_input_scale(v, D, g, gain)
     fill!(g.abuf, zero(Complex{T}))
     for j = 1:D
-        _accum_deriv!(g.abuf, v[j], g, j, one(T))
+        _accum_deriv!(g.abuf, v[j], g, j, one(T), input_scale)
     end
     g.iplan * g.abuf
-    out .= real.(g.abuf)
+    _store_fft_output!(out, g.abuf, input_scale)
     return out
 end
 
@@ -178,52 +185,55 @@ function curl!(
         Base.mightalias(out[c], A[d]) &&
             throw(ArgumentError("curl! output components must not alias input components"))
     end
+    gain = sum(d -> maximum(abs, g.kvec[d]), 1:D)
+    isfinite(gain) || throw(ArgumentError("curl spectral multiplier bound is not representable as $T"))
+    input_scale = _fft_input_scale(A, 3, g, gain)
     o = one(T)
     m = -one(T)
     if D == 1
         fill!(out[1], zero(T))
         fill!(g.abuf, zero(Complex{T}))
-        _accum_deriv!(g.abuf, A[3], g, 1, m)
+        _accum_deriv!(g.abuf, A[3], g, 1, m, input_scale)
         g.iplan * g.abuf
-        out[2] .= real.(g.abuf)
+        _store_fft_output!(out[2], g.abuf, input_scale)
         fill!(g.abuf, zero(Complex{T}))
-        _accum_deriv!(g.abuf, A[2], g, 1, o)
+        _accum_deriv!(g.abuf, A[2], g, 1, o, input_scale)
         g.iplan * g.abuf
-        out[3] .= real.(g.abuf)
+        _store_fft_output!(out[3], g.abuf, input_scale)
         return out
     elseif D == 2
-        _forward_field!(g.cbuf, A[3], g)
+        _forward_field!(g.cbuf, A[3], g, input_scale)
         _apply_ik_store!(g.tbuf, g.cbuf, g.ik[2], 2)
         g.iplan * g.tbuf
-        out[1] .= real.(g.tbuf)
+        _store_fft_output!(out[1], g.tbuf, input_scale)
         _apply_ik_store_scaled!(g.tbuf, g.cbuf, g.ik[1], 1, m)
         g.iplan * g.tbuf
-        out[2] .= real.(g.tbuf)
+        _store_fft_output!(out[2], g.tbuf, input_scale)
         fill!(g.abuf, zero(Complex{T}))
-        _accum_deriv!(g.abuf, A[2], g, 1, o)
-        _accum_deriv!(g.abuf, A[1], g, 2, m)
+        _accum_deriv!(g.abuf, A[2], g, 1, o, input_scale)
+        _accum_deriv!(g.abuf, A[1], g, 2, m, input_scale)
         g.iplan * g.abuf
-        out[3] .= real.(g.abuf)
+        _store_fft_output!(out[3], g.abuf, input_scale)
         return out
     end
-    _forward_field!(g.cbuf, A[1], g)
-    _forward_field!(g.tbuf, A[2], g)
-    _forward_field!(g.abuf, A[3], g)
+    _forward_field!(g.cbuf, A[1], g, input_scale)
+    _forward_field!(g.tbuf, A[2], g, input_scale)
+    _forward_field!(g.abuf, A[3], g, input_scale)
 
     # (curl A)_x = ∂_y A_z - ∂_z A_y
     _curl_component_store!(g.sbuf, g.abuf, g.ik[2], 2, g.tbuf, g.ik[3], 3)
     g.iplan * g.sbuf
-    out[1] .= real.(g.sbuf)
+    _store_fft_output!(out[1], g.sbuf, input_scale)
 
     # (curl A)_y = ∂_z A_x - ∂_x A_z
     _curl_component_store!(g.sbuf, g.cbuf, g.ik[3], 3, g.abuf, g.ik[1], 1)
     g.iplan * g.sbuf
-    out[2] .= real.(g.sbuf)
+    _store_fft_output!(out[2], g.sbuf, input_scale)
 
     # (curl A)_z = ∂_x A_y - ∂_y A_x
     _curl_component_store!(g.sbuf, g.tbuf, g.ik[1], 1, g.cbuf, g.ik[2], 2)
     g.iplan * g.sbuf
-    out[3] .= real.(g.sbuf)
+    _store_fft_output!(out[3], g.sbuf, input_scale)
     return out
 end
 
@@ -232,14 +242,14 @@ end
 
 Spectral Laplacian ∇²f = −|k|² f̂ (periodic). Used for hyperresistivity and
 diffusion terms. Throws an `ArgumentError` before mutating `out` when the
-largest squared grid wavenumber is not representable in the grid element type.
+largest squared grid wavenumber would overflow the grid element type.
 """
-@inline function _require_representable_laplacian(g::FourierGrid{D,T}) where {D,T}
+@inline function _require_nonoverflowing_laplacian(g::FourierGrid{D,T}) where {D,T}
     scale = zero(T)
     @inbounds for d = 1:D
         scale = max(scale, maximum(abs, g.kfull[d]))
     end
-    iszero(scale) && return nothing
+    iszero(scale) && return zero(T)
 
     scaled_k2max = zero(T)
     @inbounds for d = 1:D
@@ -252,28 +262,31 @@ largest squared grid wavenumber is not representable in the grid element type.
     scale < sqrt(floatmax(T) / scaled_k2max) ||
         throw(
             ArgumentError(
-                "squared Laplacian wavenumbers are not representable as $T; " *
+                "squared Laplacian wavenumbers would overflow $T; " *
                 "rescale the domain or use a wider floating-point type",
             ),
         )
-    return nothing
+    return (scale * scale) * scaled_k2max
 end
 
 function laplacian!(out::AbstractArray{T,D}, f::AbstractArray{T,D}, g::FourierGrid{D,T}) where {D,T}
     _require_grid_array(:input, f, g)
     _require_grid_array(:output, out, g)
-    _require_representable_laplacian(g)
-    g.cbuf .= f
+    gain = _require_nonoverflowing_laplacian(g)
+    input_scale = _prepare_fft_input!(g.cbuf, f, gain)
     g.plan * g.cbuf
     @inbounds for I in CartesianIndices(g.cbuf)
-        k2 = zero(T)
+        fhat = g.cbuf[I]
+        lap = zero(Complex{T})
         for d = 1:D
             kk = g.kfull[d][I[d]]
-            k2 += kk * kk
+            # Form the product in an order that preserves a representable
+            # fhat*kk^2 when kk^2 alone underflows.
+            lap -= (fhat * kk) * kk
         end
-        g.cbuf[I] *= -k2
+        g.cbuf[I] = lap
     end
     g.iplan * g.cbuf
-    out .= real.(g.cbuf)
+    _store_fft_output!(out, g.cbuf, input_scale)
     return out
 end

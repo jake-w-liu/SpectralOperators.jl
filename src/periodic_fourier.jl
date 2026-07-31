@@ -123,5 +123,93 @@ end
     return nothing
 end
 
+# FFTW's forward transform is unnormalised.  A finite field can therefore
+# overflow during a butterfly even when the requested real-space result is
+# finite (the derivative of a huge constant is the simplest example).  Scale
+# only when needed, and only enough to leave conservative headroom for both the
+# transform and the largest spectral multiplier used by the caller.
+@inline function _fft_safe_magnitude(::Type{T}, n::Int, gain::T) where {T}
+    isfinite(gain) && gain >= zero(T) ||
+        throw(ArgumentError("spectral multiplier bound must be finite and nonnegative"))
+    transform_safe = floatmax(T) / (T(8) * T(n))
+    return transform_safe / max(one(T), gain)
+end
+
+@inline function _fft_input_scale(magnitude::T, safe_magnitude::T) where {T}
+    (iszero(magnitude) || magnitude <= safe_magnitude) && return one(T)
+    # A conservative bound can demand a scale larger than T can encode (for
+    # example, a huge constant differentiated on an extremely short domain).
+    # Capping still protects the forward FFT and lets exactly-zero multiplied
+    # modes succeed; genuinely unrepresentable outputs remain non-finite.
+    ratio = magnitude / safe_magnitude
+    isfinite(ratio) || return floatmax(T)
+    return ratio < floatmax(T) ? nextfloat(ratio) : floatmax(T)
+end
+
+@inline function _prepare_fft_input!(
+    dst::AbstractArray{Complex{T}},
+    field::AbstractArray{T},
+    gain::T = one(T),
+) where {T}
+    magnitude = zero(T)
+    @inbounds for I in eachindex(dst, field)
+        value = field[I]
+        dst[I] = value
+        magnitude = max(magnitude, abs(value))
+    end
+    isfinite(magnitude) || throw(ArgumentError("spectral operator input values must be finite"))
+    safe_magnitude = _fft_safe_magnitude(T, length(field), gain)
+    scale = _fft_input_scale(magnitude, safe_magnitude)
+    if !isone(scale)
+        @inbounds for I in eachindex(dst, field)
+            scaled = field[I] / scale
+            !iszero(field[I]) && iszero(scaled) &&
+                throw(ArgumentError("spectral input dynamic range is too wide for lossless rescaling"))
+            dst[I] = scaled
+        end
+    end
+    return scale
+end
+
+@inline function _fft_input_scale(
+    fields,
+    count::Int,
+    g::FourierGrid{D,T},
+    gain::T = one(T),
+) where {D,T}
+    magnitude = zero(T)
+    @inbounds for c = 1:count
+        component_magnitude = maximum(abs, fields[c])
+        isfinite(component_magnitude) ||
+            throw(ArgumentError("spectral operator input values must be finite"))
+        magnitude = max(magnitude, component_magnitude)
+    end
+    safe_magnitude = _fft_safe_magnitude(T, length(g.cbuf), gain)
+    return _fft_input_scale(magnitude, safe_magnitude)
+end
+
+@inline function _copy_fft_input!(dst, field, scale)
+    if isone(scale)
+        dst .= field
+    else
+        @inbounds for I in eachindex(dst, field)
+            scaled = field[I] / scale
+            !iszero(field[I]) && iszero(scaled) &&
+                throw(ArgumentError("spectral input dynamic range is too wide for lossless rescaling"))
+            dst[I] = scaled
+        end
+    end
+    return dst
+end
+
+@inline function _store_fft_output!(out, transformed, scale)
+    if isone(scale)
+        out .= real.(transformed)
+    else
+        @. out = real(transformed) * scale
+    end
+    return out
+end
+
 # dst[I] = f̂[I] * (i k_j)   — apply the axis-j first-derivative multiplier.
 # Explicit Cartesian loop (no reshape) so it is allocation-free for runtime j.

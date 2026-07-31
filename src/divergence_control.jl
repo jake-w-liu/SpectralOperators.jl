@@ -18,17 +18,18 @@ function project_divfree!(B::Tuple{Vararg{AbstractArray{T,D},3}}, g::FourierGrid
         Base.mightalias(B[c], B[d]) &&
             throw(ArgumentError("project_divfree! components must not alias each other"))
     end
+    input_scale = _fft_input_scale(B, D, g)
     Bx = g.cbuf
     By = g.tbuf
     Bz = g.abuf
-    Bx .= B[1]
+    _copy_fft_input!(Bx, B[1], input_scale)
     g.plan * Bx
     if D >= 2
-        By .= B[2]
+        _copy_fft_input!(By, B[2], input_scale)
         g.plan * By
     end
     if D >= 3
-        Bz .= B[3]
+        _copy_fft_input!(Bz, B[3], input_scale)
         g.plan * Bz
     end
     kx = g.kvec[1]
@@ -47,24 +48,38 @@ function project_divfree!(B::Tuple{Vararg{AbstractArray{T,D},3}}, g::FourierGrid
             sy = wy / scale
             sz = wz / scale
             s2 = sx * sx + sy * sy + sz * sz
-            f = sx * Bx[I]
-            D >= 2 && (f += sy * By[I])
-            D >= 3 && (f += sz * Bz[I])
+            # Normalize the field too: the dot product can overflow for finite
+            # high-amplitude components even when the projection is finite.
+            # Real/imaginary component scaling remains finite in cases where
+            # the complex magnitude itself would overflow.
+            bx = Bx[I]
+            by = D >= 2 ? By[I] : zero(Complex{T})
+            bz = D >= 3 ? Bz[I] : zero(Complex{T})
+            bscale = max(abs(real(bx)), abs(imag(bx)))
+            D >= 2 && (bscale = max(bscale, abs(real(by)), abs(imag(by))))
+            D >= 3 && (bscale = max(bscale, abs(real(bz)), abs(imag(bz))))
+            iszero(bscale) && continue
+            tx = bx / bscale
+            ty = by / bscale
+            tz = bz / bscale
+            f = sx * tx
+            D >= 2 && (f += sy * ty)
+            D >= 3 && (f += sz * tz)
             f /= s2
-            Bx[I] -= sx * f
-            D >= 2 && (By[I] -= sy * f)
-            D >= 3 && (Bz[I] -= sz * f)
+            Bx[I] = bscale * (tx - sx * f)
+            D >= 2 && (By[I] = bscale * (ty - sy * f))
+            D >= 3 && (Bz[I] = bscale * (tz - sz * f))
         end
     end
     g.iplan * Bx
-    B[1] .= real.(Bx)
+    _store_fft_output!(B[1], Bx, input_scale)
     if D >= 2
         g.iplan * By
-        B[2] .= real.(By)
+        _store_fft_output!(B[2], By, input_scale)
     end
     if D >= 3
         g.iplan * Bz
-        B[3] .= real.(Bz)
+        _store_fft_output!(B[3], Bz, input_scale)
     end
     return B
 end
