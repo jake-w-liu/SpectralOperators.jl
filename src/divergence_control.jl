@@ -9,12 +9,16 @@ Nyquist-zeroed derivative wavenumber is zero untouched. After projection the
 discrete divergence (same wavenumbers as [`divergence!`](@ref)) is zero to
 roundoff.
 """
-function project_divfree!(B::Tuple{Vararg{AbstractArray{T,D},3}}, g::FourierGrid{D,T}) where {D,T}
-    D <= 3 || throw(ArgumentError("project_divfree! supports spatial dimension D ≤ 3; got $D"))
+function project_divfree!(
+    B::Tuple{Vararg{AbstractArray{T,D},3}},
+    g::FourierGrid{D,T},
+) where {D,T}
+    D <= 3 ||
+        throw(ArgumentError("project_divfree! supports spatial dimension D ≤ 3; got $D"))
     for c = 1:3
         _require_grid_array(:component, c, B[c], g)
     end
-    for c = 1:2, d = c+1:3
+    for c = 1:2, d = (c+1):3
         Base.mightalias(B[c], B[d]) &&
             throw(ArgumentError("project_divfree! components must not alias each other"))
     end
@@ -32,9 +36,47 @@ function project_divfree!(B::Tuple{Vararg{AbstractArray{T,D},3}}, g::FourierGrid
         _copy_fft_input!(Bz, B[3], input_scale)
         g.plan * Bz
     end
-    kx = g.kvec[1]
-    ky = D >= 2 ? g.kvec[2] : kx
-    kz = D >= 3 ? g.kvec[3] : kx
+    _project_fourier_modes!((Bx, By, Bz), g.kvec)
+    g.iplan * Bx
+    _store_fft_output!(B[1], Bx, input_scale)
+    if D >= 2
+        g.iplan * By
+        _store_fft_output!(B[2], By, input_scale)
+    end
+    if D >= 3
+        g.iplan * Bz
+        _store_fft_output!(B[3], Bz, input_scale)
+    end
+    return B
+end
+
+"""
+    _project_fourier_modes!(hats, kvec)
+
+Project three disjoint complex component arrays using derivative-resolved modes.
+Spatial dimension is 1–3; absent-axis components and null modes are unchanged.
+"""
+@inline function _project_fourier_modes!(
+    hats::Tuple{Vararg{AbstractArray{Complex{T}},3}},
+    kvec::Tuple{Vector{T},Vararg{Vector{T}}},
+) where {T}
+    D = length(kvec)
+    1 <= D <= 3 ||
+        throw(ArgumentError("Fourier projection supports spatial dimensions 1–3"))
+    Bx, By, Bz = hats
+    for c = 1:3
+        axes(hats[c]) == axes(Bx) || throw(
+            DimensionMismatch("Fourier projection arrays must have identical logical axes"),
+        )
+        _require_mode_metadata(hats[c], kvec)
+    end
+    for c = 1:2, d = (c+1):3
+        Base.mightalias(hats[c], hats[d]) &&
+            throw(ArgumentError("Fourier projection components must not alias each other"))
+    end
+    kx = kvec[1]
+    ky = D >= 2 ? kvec[2] : kx
+    kz = D >= 3 ? kvec[3] : kx
     @inbounds for I in CartesianIndices(Bx)
         wx = kx[I[1]]
         wy = D >= 2 ? ky[I[2]] : zero(T)
@@ -71,15 +113,5 @@ function project_divfree!(B::Tuple{Vararg{AbstractArray{T,D},3}}, g::FourierGrid
             D >= 3 && (Bz[I] = bscale * (tz - sz * f))
         end
     end
-    g.iplan * Bx
-    _store_fft_output!(B[1], Bx, input_scale)
-    if D >= 2
-        g.iplan * By
-        _store_fft_output!(B[2], By, input_scale)
-    end
-    if D >= 3
-        g.iplan * Bz
-        _store_fft_output!(B[3], Bz, input_scale)
-    end
-    return B
+    return hats
 end

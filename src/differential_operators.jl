@@ -1,17 +1,30 @@
 # differential_operators.jl — periodic Fourier ∂/∇/∇·/∇×/∇².
 
+"""
+    _apply_ik_store!(dst, hat, ikj, j)
+
+Apply the first-derivative multiplier using global logical indices.
+See `docs/FOURIER_BACKEND_CONTRACT.md` for metadata and alias preconditions.
+"""
 @inline function _apply_ik_store!(
     dst::AbstractArray{Complex{T},D},
     fhat::AbstractArray{Complex{T},D},
     ikj::Vector{Complex{T}},
     j::Int,
 ) where {D,T}
+    _require_mode_input(dst, fhat)
+    _require_mode_axis(dst, ikj, j)
     @inbounds for I in CartesianIndices(dst)
         dst[I] = fhat[I] * ikj[I[j]]
     end
     return dst
 end
 
+"""
+    _apply_ik_store_scaled!(dst, hat, ikj, j, s)
+
+Store the ordered product `s * hat[I] * ikj[I[j]]` on global logical indices.
+"""
 @inline function _apply_ik_store_scaled!(
     dst::AbstractArray{Complex{T},D},
     fhat::AbstractArray{Complex{T},D},
@@ -19,6 +32,8 @@ end
     j::Int,
     s::T,
 ) where {D,T}
+    _require_mode_input(dst, fhat)
+    _require_mode_axis(dst, ikj, j)
     @inbounds for I in CartesianIndices(dst)
         dst[I] = s * fhat[I] * ikj[I[j]]
     end
@@ -26,6 +41,11 @@ end
 end
 
 # acc[I] += s * f̂[I] * (i k_j)
+"""
+    _apply_ik_accum!(dst, hat, ikj, j, s)
+
+Accumulate the ordered product `s * hat[I] * ikj[I[j]]`.
+"""
 @inline function _apply_ik_accum!(
     acc::AbstractArray{Complex{T},D},
     fhat::AbstractArray{Complex{T},D},
@@ -33,6 +53,8 @@ end
     j::Int,
     s::T,
 ) where {D,T}
+    _require_mode_input(acc, fhat)
+    _require_mode_axis(acc, ikj, j)
     @inbounds for I in CartesianIndices(acc)
         acc[I] += s * fhat[I] * ikj[I[j]]
     end
@@ -65,6 +87,11 @@ end
     return dst
 end
 
+"""
+    _curl_component_store!(dst, plus, plus_ik, plus_axis, minus, minus_ik, minus_axis)
+
+Store the difference of two derivative products on global logical indices.
+"""
 @inline function _curl_component_store!(
     dst::AbstractArray{Complex{T},D},
     plus_hat::AbstractArray{Complex{T},D},
@@ -74,8 +101,13 @@ end
     minus_ik::Vector{Complex{T}},
     minus_axis::Int,
 ) where {D,T}
+    _require_mode_input(dst, plus_hat)
+    _require_mode_input(dst, minus_hat)
+    _require_mode_axis(dst, plus_ik, plus_axis)
+    _require_mode_axis(dst, minus_ik, minus_axis)
     @inbounds for I in CartesianIndices(dst)
-        dst[I] = plus_hat[I] * plus_ik[I[plus_axis]] - minus_hat[I] * minus_ik[I[minus_axis]]
+        dst[I] =
+            plus_hat[I] * plus_ik[I[plus_axis]] - minus_hat[I] * minus_ik[I[minus_axis]]
     end
     return dst
 end
@@ -105,7 +137,8 @@ function deriv!(
 end
 
 "Allocating convenience wrapper for [`deriv!`](@ref)."
-deriv(f::AbstractArray{T,D}, g::FourierGrid{D,T}, j::Int) where {D,T} = deriv!(similar(f), f, g, j)
+deriv(f::AbstractArray{T,D}, g::FourierGrid{D,T}, j::Int) where {D,T} =
+    deriv!(similar(f), f, g, j)
 
 """
     gradient!(out::NTuple{D}, f, g)
@@ -121,7 +154,7 @@ function gradient!(
     for j = 1:D
         _require_grid_array(:output, j, out[j], g)
     end
-    for j = 1:D-1, k = j+1:D
+    for j = 1:(D-1), k = (j+1):D
         Base.mightalias(out[j], out[k]) &&
             throw(ArgumentError("gradient! output components must not alias each other"))
     end
@@ -143,13 +176,16 @@ Divergence Σ_{j=1}^{D} ∂_j v[j] of a vector field. Only the first `D` (spatia
 components are used, so a 3-component velocity field works in any dimension.
 """
 function divergence!(out::AbstractArray{T,D}, v, g::FourierGrid{D,T}) where {D,T}
-    length(v) >= D || throw(ArgumentError("divergence! needs at least $D vector components"))
+    length(v) >= D ||
+        throw(ArgumentError("divergence! needs at least $D vector components"))
     _require_grid_array(:output, out, g)
     for j = 1:D
         _require_grid_array(:input, j, v[j], g)
     end
     gain = sum(d -> maximum(abs, g.kvec[d]), 1:D)
-    isfinite(gain) || throw(ArgumentError("divergence spectral multiplier bound is not representable as $T"))
+    isfinite(gain) || throw(
+        ArgumentError("divergence spectral multiplier bound is not representable as $T"),
+    )
     input_scale = _fft_input_scale(v, D, g, gain)
     fill!(g.abuf, zero(Complex{T}))
     for j = 1:D
@@ -177,7 +213,7 @@ function curl!(
         _require_grid_array(:output, c, out[c], g)
         _require_grid_array(:input, c, A[c], g)
     end
-    for c = 1:2, d = c+1:3
+    for c = 1:2, d = (c+1):3
         Base.mightalias(out[c], out[d]) &&
             throw(ArgumentError("curl! output components must not alias each other"))
     end
@@ -186,7 +222,8 @@ function curl!(
             throw(ArgumentError("curl! output components must not alias input components"))
     end
     gain = sum(d -> maximum(abs, g.kvec[d]), 1:D)
-    isfinite(gain) || throw(ArgumentError("curl spectral multiplier bound is not representable as $T"))
+    isfinite(gain) ||
+        throw(ArgumentError("curl spectral multiplier bound is not representable as $T"))
     input_scale = _fft_input_scale(A, 3, g, gain)
     o = one(T)
     m = -one(T)
@@ -238,55 +275,80 @@ function curl!(
 end
 
 """
+    _laplacian_gain(kfull)
+
+Return the full-grid Laplacian gain bound, rejecting an overflowing squared bound.
+Metadata is the full nonempty tuple produced by `_fourier_metadata`.
+"""
+@inline function _laplacian_gain(kfull::Tuple{Vector{T},Vararg{Vector{T}}}) where {T}
+    D = length(kfull)
+    scale = zero(T)
+    @inbounds for d = 1:D
+        scale = max(scale, maximum(abs, kfull[d]))
+    end
+    iszero(scale) && return zero(T)
+
+    scaled_k2max = zero(T)
+    @inbounds for d = 1:D
+        axismax = maximum(abs, kfull[d])
+        ratio = axismax / scale
+        scaled_k2max += ratio * ratio
+    end
+    # Use a strict bound so rounding in the componentwise square-and-sum below
+    # cannot cross floatmax(T).
+    scale < sqrt(floatmax(T) / scaled_k2max) || throw(
+        ArgumentError(
+            "squared Laplacian wavenumbers would overflow $T; " *
+            "rescale the domain or use a wider floating-point type",
+        ),
+    )
+    return (scale * scale) * scaled_k2max
+end
+
+"""
     laplacian!(out, f, g)
 
 Spectral Laplacian ∇²f = −|k|² f̂ (periodic). Used for hyperresistivity and
 diffusion terms. Throws an `ArgumentError` before mutating `out` when the
 largest squared grid wavenumber would overflow the grid element type.
 """
-@inline function _require_nonoverflowing_laplacian(g::FourierGrid{D,T}) where {D,T}
-    scale = zero(T)
-    @inbounds for d = 1:D
-        scale = max(scale, maximum(abs, g.kfull[d]))
-    end
-    iszero(scale) && return zero(T)
-
-    scaled_k2max = zero(T)
-    @inbounds for d = 1:D
-        axismax = maximum(abs, g.kfull[d])
-        ratio = axismax / scale
-        scaled_k2max += ratio * ratio
-    end
-    # Use a strict bound so rounding in the componentwise square-and-sum below
-    # cannot cross floatmax(T).
-    scale < sqrt(floatmax(T) / scaled_k2max) ||
-        throw(
-            ArgumentError(
-                "squared Laplacian wavenumbers would overflow $T; " *
-                "rescale the domain or use a wider floating-point type",
-            ),
-        )
-    return (scale * scale) * scaled_k2max
-end
-
-function laplacian!(out::AbstractArray{T,D}, f::AbstractArray{T,D}, g::FourierGrid{D,T}) where {D,T}
+function laplacian!(
+    out::AbstractArray{T,D},
+    f::AbstractArray{T,D},
+    g::FourierGrid{D,T},
+) where {D,T}
     _require_grid_array(:input, f, g)
     _require_grid_array(:output, out, g)
-    gain = _require_nonoverflowing_laplacian(g)
+    gain = _laplacian_gain(g.kfull)
     input_scale = _prepare_fft_input!(g.cbuf, f, gain)
     g.plan * g.cbuf
-    @inbounds for I in CartesianIndices(g.cbuf)
-        fhat = g.cbuf[I]
+    _apply_laplacian_multiplier!(g.cbuf, g.kfull)
+    g.iplan * g.cbuf
+    _store_fft_output!(out, g.cbuf, input_scale)
+    return out
+end
+
+"""
+    _apply_laplacian_multiplier!(hat, kfull)
+
+Apply the existing ordered sum of `-(hat*k)*k` in place, including full Nyquist.
+The caller checks `_laplacian_gain` before transforming.
+"""
+@inline function _apply_laplacian_multiplier!(
+    hat::AbstractArray{Complex{T},D},
+    kfull::NTuple{D,Vector{T}},
+) where {D,T}
+    _require_mode_metadata(hat, kfull)
+    @inbounds for I in CartesianIndices(hat)
+        fhat = hat[I]
         lap = zero(Complex{T})
         for d = 1:D
-            kk = g.kfull[d][I[d]]
+            kk = kfull[d][I[d]]
             # Form the product in an order that preserves a representable
             # fhat*kk^2 when kk^2 alone underflows.
             lap -= (fhat * kk) * kk
         end
-        g.cbuf[I] = lap
+        hat[I] = lap
     end
-    g.iplan * g.cbuf
-    _store_fft_output!(out, g.cbuf, input_scale)
-    return out
+    return hat
 end

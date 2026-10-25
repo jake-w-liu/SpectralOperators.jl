@@ -173,3 +173,11 @@ and steady-state zero allocation for the main periodic Fourier operators.
 The package has its own git repository and license file. Before Julia General
 registration, run the normal release checks from a clean checkout and tag the
 release intended for registration.
+
+## Backend integration
+
+The [qualified Fourier backend contract](docs/FOURIER_BACKEND_CONTRACT.md) exposes
+the serial metadata, range rules and mode multipliers for alternative FFT
+transports using global logical array indices. It adds no transport dependency;
+FFT execution, normalization and distributed failure agreement remain the
+backend’s responsibility.

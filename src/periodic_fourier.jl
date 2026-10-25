@@ -39,38 +39,58 @@ struct FourierGrid{D,T,P,PI}
 end
 
 @inline function _require_fftw_float(::Type{T}, name::Symbol) where {T<:AbstractFloat}
-    (T === Float32 || T === Float64) ||
-        throw(ArgumentError("$(name) supports only Float32 and Float64 with the FFTW backend; got $(T)"))
+    (T === Float32 || T === Float64) || throw(
+        ArgumentError(
+            "$(name) supports only Float32 and Float64 with the FFTW backend; got $(T)",
+        ),
+    )
     return nothing
 end
 
-@inline function _checked_fourier_scale(::Type{T}, N::Int, L::T, name::Symbol) where {T<:AbstractFloat}
+@inline function _checked_fourier_scale(
+    ::Type{T},
+    N::Int,
+    L::T,
+    name::Symbol,
+) where {T<:AbstractFloat}
     N == 1 && return zero(T)
     scale = T(2π) / L
     kmax = scale * T(N ÷ 2)
-    isfinite(scale) && scale > zero(T) && isfinite(kmax) && kmax > zero(T) ||
-        throw(ArgumentError(
+    isfinite(scale) && scale > zero(T) && isfinite(kmax) && kmax > zero(T) || throw(
+        ArgumentError(
             "$(name)=$L and size $N produce Fourier wavenumbers that are not " *
             "finite and representable as $T",
-        ))
+        ),
+    )
     return scale
 end
 
-function FourierGrid(n::Tuple{Int,Vararg{Int}}, L::Tuple{T,Vararg{T}}) where {T<:AbstractFloat}
+"""
+    _fourier_metadata(n, L)
+
+Return validated full Fourier metadata without FFT plans or field storage.
+See `docs/FOURIER_BACKEND_CONTRACT.md` for the qualified backend API.
+"""
+function _fourier_metadata(
+    n::Tuple{Int,Vararg{Int}},
+    L::Tuple{T,Vararg{T}},
+) where {T<:AbstractFloat}
     _require_fftw_float(T, :FourierGrid)
     D = length(n)
-    length(L) == D || throw(DimensionMismatch("domain length tuple has length $(length(L)); expected $D"))
+    length(L) == D ||
+        throw(DimensionMismatch("domain length tuple has length $(length(L)); expected $D"))
     all(>(0), n) || throw(ArgumentError("grid sizes must be positive"))
     all(l -> isfinite(l) && l > zero(T), L) ||
         throw(ArgumentError("domain lengths must be positive and finite"))
     dx = ntuple(d -> L[d] / n[d], D)
-    all(d -> isfinite(dx[d]) && dx[d] > zero(T), 1:D) ||
-        throw(ArgumentError("grid spacings must be positive, finite, and representable as $T"))
+    all(d -> isfinite(dx[d]) && dx[d] > zero(T), 1:D) || throw(
+        ArgumentError("grid spacings must be positive, finite, and representable as $T"),
+    )
     kscale = ntuple(d -> _checked_fourier_scale(T, n[d], L[d], Symbol("L[$d]")), D)
     midx = ntuple(D) do d
         N = n[d]
         modes = Vector{Int}(undef, N)
-        for m = 0:N-1
+        for m = 0:(N-1)
             mp = m <= N ÷ 2 ? m : m - N          # signed mode index
             modes[m+1] = mp
         end
@@ -94,32 +114,76 @@ function FourierGrid(n::Tuple{Int,Vararg{Int}}, L::Tuple{T,Vararg{T}}) where {T<
         k
     end
     ik = ntuple(d -> Complex{T}.(zero(T), kvec[d]), D)
+    return (; n, L, dx, midx, kfull, ik, kvec)
+end
+
+function FourierGrid(
+    n::Tuple{Int,Vararg{Int}},
+    L::Tuple{T,Vararg{T}},
+) where {T<:AbstractFloat}
+    metadata = _fourier_metadata(n, L)
+    D = length(n)
+    (; dx, midx, kfull, ik, kvec) = metadata
     cbuf = zeros(Complex{T}, n)
     tbuf = zeros(Complex{T}, n)
     abuf = zeros(Complex{T}, n)
     sbuf = zeros(Complex{T}, n)
     plan = plan_fft!(cbuf)
     iplan = plan_ifft!(cbuf)
-    FourierGrid{D,T,typeof(plan),typeof(iplan)}(n, L, dx, midx, kfull, ik, kvec, plan, iplan, cbuf, tbuf, abuf, sbuf)
+    FourierGrid{D,T,typeof(plan),typeof(iplan)}(
+        n,
+        L,
+        dx,
+        midx,
+        kfull,
+        ik,
+        kvec,
+        plan,
+        iplan,
+        cbuf,
+        tbuf,
+        abuf,
+        sbuf,
+    )
 end
 
-@inline function _require_grid_array(name::Symbol, a::AbstractArray, g::FourierGrid{D,T}) where {D,T}
-    eltype(a) === T ||
-        throw(ArgumentError("$(name) element type $(eltype(a)) does not match grid element type $(T)"))
+@inline function _require_grid_array(
+    name::Symbol,
+    a::AbstractArray,
+    g::FourierGrid{D,T},
+) where {D,T}
+    eltype(a) === T || throw(
+        ArgumentError(
+            "$(name) element type $(eltype(a)) does not match grid element type $(T)",
+        ),
+    )
     size(a) == g.n ||
         throw(DimensionMismatch("$(name) size $(size(a)) does not match grid size $(g.n)"))
-    axes(a) == axes(g.cbuf) ||
-        throw(DimensionMismatch("$(name) axes $(axes(a)) must be one-based axes $(axes(g.cbuf))"))
+    axes(a) == axes(g.cbuf) || throw(
+        DimensionMismatch("$(name) axes $(axes(a)) must be one-based axes $(axes(g.cbuf))"),
+    )
     return nothing
 end
 
-@inline function _require_grid_array(name::Symbol, c::Int, a::AbstractArray, g::FourierGrid{D,T}) where {D,T}
-    eltype(a) === T ||
-        throw(ArgumentError("$(name)[$c] element type $(eltype(a)) does not match grid element type $(T)"))
-    size(a) == g.n ||
-        throw(DimensionMismatch("$(name)[$c] size $(size(a)) does not match grid size $(g.n)"))
-    axes(a) == axes(g.cbuf) ||
-        throw(DimensionMismatch("$(name)[$c] axes $(axes(a)) must be one-based axes $(axes(g.cbuf))"))
+@inline function _require_grid_array(
+    name::Symbol,
+    c::Int,
+    a::AbstractArray,
+    g::FourierGrid{D,T},
+) where {D,T}
+    eltype(a) === T || throw(
+        ArgumentError(
+            "$(name)[$c] element type $(eltype(a)) does not match grid element type $(T)",
+        ),
+    )
+    size(a) == g.n || throw(
+        DimensionMismatch("$(name)[$c] size $(size(a)) does not match grid size $(g.n)"),
+    )
+    axes(a) == axes(g.cbuf) || throw(
+        DimensionMismatch(
+            "$(name)[$c] axes $(axes(a)) must be one-based axes $(axes(g.cbuf))",
+        ),
+    )
     return nothing
 end
 
@@ -128,6 +192,11 @@ end
 # finite (the derivative of a huge constant is the simplest example).  Scale
 # only when needed, and only enough to leave conservative headroom for both the
 # transform and the largest spectral multiplier used by the caller.
+"""
+    _fft_safe_magnitude(T, global_count, gain)
+
+Return serial FFT headroom for a positive global count and finite nonnegative gain.
+"""
 @inline function _fft_safe_magnitude(::Type{T}, n::Int, gain::T) where {T}
     isfinite(gain) && gain >= zero(T) ||
         throw(ArgumentError("spectral multiplier bound must be finite and nonnegative"))
@@ -135,6 +204,12 @@ end
     return transform_safe / max(one(T), gain)
 end
 
+"""
+    _fft_input_scale(magnitude, safe_magnitude)
+
+Choose the existing conservative common scale from finite nonnegative magnitudes.
+The scalar overload is the supported backend primitive; see the backend contract.
+"""
 @inline function _fft_input_scale(magnitude::T, safe_magnitude::T) where {T}
     (iszero(magnitude) || magnitude <= safe_magnitude) && return one(T)
     # A conservative bound can demand a scale larger than T can encode (for
@@ -157,14 +232,20 @@ end
         dst[I] = value
         magnitude = max(magnitude, abs(value))
     end
-    isfinite(magnitude) || throw(ArgumentError("spectral operator input values must be finite"))
+    isfinite(magnitude) ||
+        throw(ArgumentError("spectral operator input values must be finite"))
     safe_magnitude = _fft_safe_magnitude(T, length(field), gain)
     scale = _fft_input_scale(magnitude, safe_magnitude)
     if !isone(scale)
         @inbounds for I in eachindex(dst, field)
             scaled = field[I] / scale
-            !iszero(field[I]) && iszero(scaled) &&
-                throw(ArgumentError("spectral input dynamic range is too wide for lossless rescaling"))
+            !iszero(field[I]) &&
+                iszero(scaled) &&
+                throw(
+                    ArgumentError(
+                        "spectral input dynamic range is too wide for lossless rescaling",
+                    ),
+                )
             dst[I] = scaled
         end
     end
@@ -188,20 +269,37 @@ end
     return _fft_input_scale(magnitude, safe_magnitude)
 end
 
+"""
+    _copy_fft_input!(dst, field, scale)
+
+Copy real input to disjoint complex scratch with matching logical axes, rejecting
+nonzero values lost to rescaling. Failure may leave partial scratch writes.
+"""
 @inline function _copy_fft_input!(dst, field, scale)
     if isone(scale)
         dst .= field
     else
         @inbounds for I in eachindex(dst, field)
             scaled = field[I] / scale
-            !iszero(field[I]) && iszero(scaled) &&
-                throw(ArgumentError("spectral input dynamic range is too wide for lossless rescaling"))
+            !iszero(field[I]) &&
+                iszero(scaled) &&
+                throw(
+                    ArgumentError(
+                        "spectral input dynamic range is too wide for lossless rescaling",
+                    ),
+                )
             dst[I] = scaled
         end
     end
     return dst
 end
 
+"""
+    _store_fft_output!(out, transformed, scale)
+
+Extract the real part after a normalized inverse and restore the input scale.
+Caller provides disjoint storage with matching logical axes and precision.
+"""
 @inline function _store_fft_output!(out, transformed, scale)
     if isone(scale)
         out .= real.(transformed)
@@ -211,5 +309,57 @@ end
     return out
 end
 
-# dst[I] = f̂[I] * (i k_j)   — apply the axis-j first-derivative multiplier.
-# Explicit Cartesian loop (no reshape) so it is allocation-free for runtime j.
+# These checks use logical axes, never the memory order or local array lengths.
+@inline function _require_mode_axis(
+    a::AbstractArray{<:Any,D},
+    metadata::Vector,
+    j::Int,
+) where {D}
+    1 <= j <= D || throw(ArgumentError("axis $j out of range 1:$D"))
+    axis = axes(a, j)
+    isempty(axis) ||
+        (first(axis) >= 1 && last(axis) <= length(metadata)) ||
+        throw(DimensionMismatch("logical Fourier axis $j is outside its full metadata"))
+    Base.mightalias(a, metadata) &&
+        throw(ArgumentError("Fourier output must not alias metadata"))
+    return nothing
+end
+
+@inline function _require_mode_input(dst, src)
+    axes(dst) == axes(src) ||
+        throw(DimensionMismatch("Fourier kernel arrays must have identical logical axes"))
+    dst === src ||
+        !Base.mightalias(dst, src) ||
+        throw(
+            ArgumentError(
+                "Fourier kernel output may alias an input only by exact object identity",
+            ),
+        )
+    return nothing
+end
+
+@inline function _require_mode_metadata(
+    a::AbstractArray{<:Any,D},
+    metadata::Tuple{Vector{T},Vararg{Vector{T}}},
+) where {D,T}
+    length(metadata) == D ||
+        throw(DimensionMismatch("Fourier metadata dimension must match the array"))
+    for d = 1:D
+        _require_mode_axis(a, metadata[d], d)
+    end
+    return nothing
+end
+
+@inline function _require_filter_metadata(
+    a::AbstractArray{<:Any,D},
+    midx::NTuple{D,Vector{Int}},
+    n::NTuple{D,Int},
+) where {D}
+    for d = 1:D
+        n[d] > 0 && length(midx[d]) == n[d] || throw(
+            DimensionMismatch("Fourier mode metadata must match the positive global size"),
+        )
+    end
+    _require_mode_metadata(a, midx)
+    return nothing
+end

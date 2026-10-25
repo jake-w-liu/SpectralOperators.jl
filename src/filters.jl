@@ -36,25 +36,7 @@ function exp_filter!(
     αT = T(α)
     input_scale = _prepare_fft_input!(g.cbuf, field)
     g.plan * g.cbuf
-    @inbounds for I in CartesianIndices(g.cbuf)
-        ratio2 = zero(T)
-        for d = 1:D
-            max_mode = g.n[d] ÷ 2
-            if max_mode > 0
-                # |k|/kmax is exactly the integer mode ratio |m|/(N÷2).
-                # Computing k²/kmax² can become 0/0 or Inf/Inf in Float32
-                # even when both wavenumbers themselves are representable.
-                ratio = T(abs(g.midx[d][I[d]])) / T(max_mode)
-                ratio2 = max(ratio2, ratio * ratio)
-            end
-        end
-        if ratio2 == 0
-            # σ(0) = 1 exactly; degenerate all-singleton grids have no damping.
-            continue
-        end
-        σ = exp(-αT * ratio2^Int(p))             # (ratio2)^p = max_d(|k_d|/kmax_d)^{2p}
-        g.cbuf[I] *= σ
-    end
+    _apply_exp_filter_multiplier!(g.cbuf, g.midx, g.n, αT, p)
     g.iplan * g.cbuf
     _store_fft_output!(field, g.cbuf, input_scale)
     return field
@@ -73,13 +55,7 @@ function dealias_two_thirds!(field::AbstractArray{T,D}, g::FourierGrid{D,T}) whe
     _require_grid_array(:field, field, g)
     input_scale = _prepare_fft_input!(g.cbuf, field)
     g.plan * g.cbuf
-    @inbounds for I in CartesianIndices(g.cbuf)
-        ok = true
-        for d = 1:D
-            ok &= 3 * abs(g.midx[d][I[d]]) < g.n[d]
-        end
-        ok || (g.cbuf[I] = zero(Complex{T}))
-    end
+    _apply_two_thirds_mask!(g.cbuf, g.midx, g.n)
     g.iplan * g.cbuf
     _store_fft_output!(field, g.cbuf, input_scale)
     return field
@@ -254,10 +230,15 @@ total charge.
 `g` supplies the dimensionality and is the natural place the grid spacing lives;
 `field` must have the grid's shape.
 """
-function binomial_smooth!(field::Array{T,D}, g::FourierGrid{D,T}; passes::Int = 1) where {T,D}
+function binomial_smooth!(
+    field::Array{T,D},
+    g::FourierGrid{D,T};
+    passes::Int = 1,
+) where {T,D}
     passes >= 0 || throw(ArgumentError("passes must be non-negative, got $passes"))
-    size(field) == g.n ||
-        throw(DimensionMismatch("field size $(size(field)) does not match grid size $(g.n)"))
+    size(field) == g.n || throw(
+        DimensionMismatch("field size $(size(field)) does not match grid size $(g.n)"),
+    )
     passes == 0 && return field
     work = BinomialSmoothWorkspace(g)
     return binomial_smooth!(field, g, work; passes)
@@ -277,12 +258,16 @@ function binomial_smooth!(
     passes::Int = 1,
 ) where {T,D}
     passes >= 0 || throw(ArgumentError("passes must be non-negative, got $passes"))
-    size(field) == g.n ||
-        throw(DimensionMismatch("field size $(size(field)) does not match grid size $(g.n)"))
+    size(field) == g.n || throw(
+        DimensionMismatch("field size $(size(field)) does not match grid size $(g.n)"),
+    )
     passes == 0 && return field
     buf = work.buf
-    length(buf) >= maximum(g.n) ||
-        throw(DimensionMismatch("workspace length $(length(buf)) is smaller than required $(maximum(g.n))"))
+    length(buf) >= maximum(g.n) || throw(
+        DimensionMismatch(
+            "workspace length $(length(buf)) is smaller than required $(maximum(g.n))",
+        ),
+    )
     Base.mightalias(field, buf) &&
         throw(ArgumentError("binomial_smooth! workspace must not alias the field"))
     for j = 1:D
@@ -291,4 +276,63 @@ function binomial_smooth!(
         end
     end
     return field
+end
+
+"""
+    _apply_exp_filter_multiplier!(hat, midx, n, alphaT, p)
+
+Apply the existing mode-ratio exponential filter; DC is retained exactly.
+Requires `alphaT >= 0` and integer `p >= 1`.
+"""
+@inline function _apply_exp_filter_multiplier!(
+    hat::AbstractArray{Complex{T},D},
+    midx::NTuple{D,Vector{Int}},
+    n::NTuple{D,Int},
+    αT::T,
+    p::Integer,
+) where {D,T}
+    p >= 1 || throw(ArgumentError("p must be ≥ 1"))
+    αT >= 0 || throw(ArgumentError("α must be ≥ 0"))
+    _require_filter_metadata(hat, midx, n)
+    @inbounds for I in CartesianIndices(hat)
+        ratio2 = zero(T)
+        for d = 1:D
+            max_mode = n[d] ÷ 2
+            if max_mode > 0
+                # |k|/kmax is exactly the integer mode ratio |m|/(N÷2).
+                # Computing k²/kmax² can become 0/0 or Inf/Inf in Float32
+                # even when both wavenumbers themselves are representable.
+                ratio = T(abs(midx[d][I[d]])) / T(max_mode)
+                ratio2 = max(ratio2, ratio * ratio)
+            end
+        end
+        if ratio2 == 0
+            # σ(0) = 1 exactly; degenerate all-singleton grids have no damping.
+            continue
+        end
+        σ = exp(-αT * ratio2^Int(p))             # (ratio2)^p = max_d(|k_d|/kmax_d)^{2p}
+        hat[I] *= σ
+    end
+    return hat
+end
+
+"""
+    _apply_two_thirds_mask!(hat, midx, n)
+
+Retain exactly the modes satisfying `3abs(midx[d][I[d]]) < n[d]` on every axis.
+"""
+@inline function _apply_two_thirds_mask!(
+    hat::AbstractArray{Complex{T},D},
+    midx::NTuple{D,Vector{Int}},
+    n::NTuple{D,Int},
+) where {D,T}
+    _require_filter_metadata(hat, midx, n)
+    @inbounds for I in CartesianIndices(hat)
+        ok = true
+        for d = 1:D
+            ok &= 3 * abs(midx[d][I[d]]) < n[d]
+        end
+        ok || (hat[I] = zero(Complex{T}))
+    end
+    return hat
 end
