@@ -181,3 +181,8 @@ the serial metadata, range rules and mode multipliers for alternative FFT
 transports using global logical array indices. It adds no transport dependency;
 FFT execution, normalization and distributed failure agreement remain the
 backend’s responsibility.
+
+The shared range guard includes growth inside the unnormalized inverse before
+its final normalization. It rescales extreme finite inputs and rejects a scale
+that would erase a nonzero input. The [inverse-range repair record](docs/INVERSE_FFT_HEADROOM_REPAIR.md)
+contains the independent finite-output convolution test and scope limits.

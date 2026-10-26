@@ -195,12 +195,15 @@ end
 """
     _fft_safe_magnitude(T, global_count, gain)
 
-Return serial FFT headroom for a positive global count and finite nonnegative gain.
+Return full forward/inverse FFT headroom for a positive global count and finite
+nonnegative multiplier gain. The unnormalized inverse precedes normalization.
+For one input field, Parseval/Cauchy bound spectral 1-norm by `gain*n*sqrt(n)*M`;
+the factor-eight margin also covers the projection's three input components.
 """
 @inline function _fft_safe_magnitude(::Type{T}, n::Int, gain::T) where {T}
     isfinite(gain) && gain >= zero(T) ||
         throw(ArgumentError("spectral multiplier bound must be finite and nonnegative"))
-    transform_safe = floatmax(T) / (T(8) * T(n))
+    transform_safe = floatmax(T) / (T(8) * T(n) * sqrt(T(n)))
     return transform_safe / max(one(T), gain)
 end
 
