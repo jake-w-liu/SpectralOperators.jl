@@ -141,6 +141,44 @@ deriv(f::AbstractArray{T,D}, g::FourierGrid{D,T}, j::Int) where {D,T} =
     deriv!(similar(f), f, g, j)
 
 """
+    nyquist_channel!(out, f, g, j)
+
+Store `k_N P_N f`, where `P_N` is the orthogonal projection onto the Nyquist
+mode of axis `j` and `k_N = π/Δx_j`. Odd axis lengths have no Nyquist mode and
+produce zero. Other axes retain all their modes. `out` and `f` may alias.
+
+This real channel completes the positive quadratic form of the full spectral
+Laplacian: `-⟨f, ∇²f⟩ = Σ_j (‖∂_j f‖² + ‖k_N P_N f‖²)`. The existing
+first derivative omits Nyquist; this channel is its energy complement, not an
+odd derivative of the unresolved sine partner. Uses the grid's shared FFT
+scratch and has the same finite-input/range contract as [`deriv!`](@ref).
+"""
+function nyquist_channel!(
+    out::AbstractArray{T,D},
+    f::AbstractArray{T,D},
+    g::FourierGrid{D,T},
+    j::Int,
+) where {D,T}
+    1 <= j <= D || throw(ArgumentError("axis $j out of range 1:$D"))
+    _require_grid_array(:input, f, g)
+    _require_grid_array(:output, out, g)
+    if isodd(g.n[j])
+        all(isfinite, f) || throw(ArgumentError("spectral operator input values must be finite"))
+        return fill!(out, zero(T))
+    end
+    mode = g.n[j] ÷ 2 + 1
+    kN = g.kfull[j][mode]
+    input_scale = _prepare_fft_input!(g.cbuf, f, kN)
+    g.plan * g.cbuf
+    @inbounds for I in CartesianIndices(g.cbuf)
+        g.cbuf[I] = I[j] == mode ? kN * g.cbuf[I] : zero(Complex{T})
+    end
+    g.iplan * g.cbuf
+    _store_fft_output!(out, g.cbuf, input_scale)
+    return out
+end
+
+"""
     gradient!(out::NTuple{D}, f, g)
 
 Gradient of scalar field `f`; `out[j]` receives ∂_j f. One forward FFT, D inverses.

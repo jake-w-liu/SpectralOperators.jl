@@ -4,6 +4,7 @@ using FFTW
 
 export FourierGrid
 export deriv!, deriv, gradient!, divergence!, curl!, laplacian!, project_divfree!
+export nyquist_channel!
 export exp_filter!, dealias_two_thirds!, fft_friendly_size, with_fftw_wisdom
 export smoothing_transfer, BinomialSmoothWorkspace, binomial_smooth!
 export SBP1D, sbp_deriv!, sbp_deriv, sbp_deriv_x!, FourierDerivYWorkspace, fourier_deriv_y!

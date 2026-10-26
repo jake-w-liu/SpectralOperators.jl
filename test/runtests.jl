@@ -7,6 +7,7 @@ using SpectralOperators
     include("test_spectral_extra.jl")
     include("test_shared_fourier.jl")
     include("test_inverse_headroom.jl")
+    include("test_nyquist_channel.jl")
     @testset "Aqua package quality" begin
         Aqua.test_all(SpectralOperators)
     end

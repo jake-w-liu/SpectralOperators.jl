@@ -186,3 +186,8 @@ The shared range guard includes growth inside the unnormalized inverse before
 its final normalization. It rescales extreme finite inputs and rejects a scale
 that would erase a nonzero input. The [inverse-range repair record](docs/INVERSE_FFT_HEADROOM_REPAIR.md)
 contains the independent finite-output convolution test and scope limits.
+
+`nyquist_channel!(out, f, g, d)` supplies the real `k_N P_N f` channel
+that completes the positive quadratic form of the full Laplacian alongside
+`deriv!`, including mixed Nyquist modes. It reuses the grid FFT scratch;
+see the docstring for its periodic energy identity.
