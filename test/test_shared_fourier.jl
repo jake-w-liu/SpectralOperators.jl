@@ -18,9 +18,9 @@ function Base.similar(
     return FourierLogicalTile(Array{T}(undef, map(length, ranges)), ranges)
 end
 @inline Base.getindex(a::FourierLogicalTile{T,D}, I::Vararg{Int,D}) where {T,D} =
-    a.data[ntuple(d->I[d]-first(a.ranges[d])+1, D)...]
+    a.data[ntuple(d -> I[d] - first(a.ranges[d]) + 1, D)...]
 @inline function Base.setindex!(a::FourierLogicalTile{T,D}, x, I::Vararg{Int,D}) where {T,D}
-    a.data[ntuple(d->I[d]-first(a.ranges[d])+1, D)...] = x
+    a.data[ntuple(d -> I[d] - first(a.ranges[d]) + 1, D)...] = x
     return x
 end
 function fourier_tile(a::Array{T,D}, ranges; permuted = false) where {T,D}
@@ -86,7 +86,7 @@ end
             ],
             3,
         )
-        ranges = ntuple(d -> max(1, n[d]÷2):n[d], D)
+        ranges = ntuple(d -> max(1, n[d] ÷ 2):n[d], D)
         for permuted in (false, true)
             tiles = map(a -> fourier_tile(a, ranges; permuted), hats)
             for tile in tiles
@@ -166,18 +166,23 @@ end
         tol = 128length(f) * eps(T)
         out = similar(f)
         for j = 1:D
-            ref = real.(
-                dense_fourier([im * k[j][I[j]] * fh[I] for I in CartesianIndices(n)], true),
-            )
+            ref =
+                real.(
+                    dense_fourier(
+                        [im * k[j][I[j]] * fh[I] for I in CartesianIndices(n)],
+                        true,
+                    ),
+                )
             deriv!(out, f, g, j)
             @test isapprox(out, ref; atol = tol, rtol = tol)
         end
-        ref = real.(
-            dense_fourier(
-                [-sum(kf[d][I[d]]^2 for d = 1:D) * fh[I] for I in CartesianIndices(n)],
-                true,
-            ),
-        )
+        ref =
+            real.(
+                dense_fourier(
+                    [-sum(kf[d][I[d]]^2 for d = 1:D) * fh[I] for I in CartesianIndices(n)],
+                    true,
+                ),
+            )
         laplacian!(out, f, g)
         @test isapprox(out, ref; atol = tol, rtol = tol)
         projected = map(copy, vh)
@@ -279,7 +284,7 @@ end
 function shared_kernel_calls(T, n, permuted)
     D = length(n)
     m = SpectralOperators._fourier_metadata(n, ntuple(d -> T(2π + d), D))
-    ranges = ntuple(d -> max(1, n[d]÷2):n[d], D)
+    ranges = ntuple(d -> max(1, n[d] ÷ 2):n[d], D)
     a = [
         Complex{T}(T(sin(sum(Tuple(I)))), T(cos(prod(Tuple(I))))) for
         I in CartesianIndices(n)
@@ -375,5 +380,26 @@ end
         scratch = zeros(Complex{T}, 2)
         @test_throws ArgumentError SO._copy_fft_input!(scratch, extreme, T(2))
         @test SO._fft_safe_magnitude(T, 24, one(T)) < SO._fft_safe_magnitude(T, 12, one(T))
+    end
+end
+
+@testset "Infinite filter strength has exact non-DC zero transfer" begin
+    for T in (Float32, Float64), power in (8, 10000, typemax(Int))
+        metadata = SpectralOperators._fourier_metadata((8, 4, 4), (T(2), T(3), T(5)))
+        modes = fill(Complex{T}(1, -2), 8, 4, 4)
+        dc = Complex{T}(3, -7)
+        modes[1, 1, 1] = dc
+        SpectralOperators._apply_exp_filter_multiplier!(
+            modes,
+            metadata.midx,
+            metadata.n,
+            T(Inf),
+            power,
+        )
+        @test isequal(modes[1, 1, 1], dc)
+        @test all(
+            I -> I == CartesianIndex(1, 1, 1) || iszero(modes[I]),
+            CartesianIndices(modes),
+        )
     end
 end

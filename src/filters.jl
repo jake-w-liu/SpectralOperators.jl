@@ -310,7 +310,9 @@ Requires `alphaT >= 0` and integer `p >= 1`.
             # σ(0) = 1 exactly; degenerate all-singleton grids have no damping.
             continue
         end
-        σ = exp(-αT * ratio2^Int(p))             # (ratio2)^p = max_d(|k_d|/kmax_d)^{2p}
+        # For positive mode ratios, infinite strength has exactly zero
+        # transfer even when ratio2^p underflows; Inf * 0 would produce NaN.
+        σ = isinf(αT) ? zero(T) : exp(-αT * ratio2^Int(p))
         hat[I] *= σ
     end
     return hat

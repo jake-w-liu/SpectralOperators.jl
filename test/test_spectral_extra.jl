@@ -110,7 +110,11 @@ end
         g2, f_lo = cosine_mode(T, n, 15)
         fl = copy(f_lo)
         dealias_two_thirds!(fl, g2)
-        @test isapprox(maximum(abs, fl), maximum(abs, f_lo); rtol = (T == Float64 ? 1e-10 : 1e-4))
+        @test isapprox(
+            maximum(abs, fl),
+            maximum(abs, f_lo);
+            rtol = (T == Float64 ? 1e-10 : 1e-4),
+        )
 
         # Exact N/3 boundary mode m=16 must be zeroed; otherwise cos(16x)^2
         # aliases back to retained mode -16 on an N=48 grid.
@@ -171,9 +175,7 @@ end
     # The old integer-by-integer search required 65,051,148,750,847 iterations
     # here on 64-bit systems (3,330,622 on 32-bit systems) before discovering
     # that no representable result exists.
-    largest_int_smooth = Sys.WORD_SIZE == 64 ?
-        big"9223306985706024960" :
-        big"2144153025"
+    largest_int_smooth = Sys.WORD_SIZE == 64 ? big"9223306985706024960" : big"2144153025"
     @test fft_friendly_size(largest_int_smooth) == Int(largest_int_smooth)
     @test_throws OverflowError fft_friendly_size(largest_int_smooth + 1)
     # Exhaustive property check: result ≥ n, 7-smooth, and minimal.
@@ -224,4 +226,22 @@ end
     out = similar(f)
     SpectralOperators.deriv!(out, f, g, 1)
     @test norm(out .- ex) / norm(ex) < 1e-10
+end
+
+@testset "exp_filter! infinite strength with underflowed mode powers" begin
+    for T in (Float32, Float64), p in (8, 10000, typemax(Int))
+        n = (8, 4, 4)
+        g = FourierGrid(n, (T(2), T(3), T(5)))
+        original =
+            [T(3) + T(cos(2pi * (i - 1) / n[1])) for i = 1:n[1], j = 1:n[2], k = 1:n[3]]
+        for alpha in (T(Inf), big(2)^2048)
+            f = copy(original)
+            @test exp_filter!(f, g; α = alpha, p) === f
+            @test all(isfinite, f)
+            @test maximum(abs, f .- T(3)) <= 16eps(T)
+        end
+        singleton = fill(T(3), 1, 1, 1)
+        exp_filter!(singleton, FourierGrid((1, 1, 1), (T(1), T(1), T(1))); α = Inf, p)
+        @test singleton == fill(T(3), 1, 1, 1)
+    end
 end
