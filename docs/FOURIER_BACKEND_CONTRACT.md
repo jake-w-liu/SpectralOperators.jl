@@ -1,9 +1,11 @@
 # Qualified Fourier backend API
 
 These names are supported through `SpectralOperators.<name>` and are marked
-`public`; they are intentionally not exported. They are the same numerical
-owners used by the serial operators. They do not plan, execute or normalize an
-FFT, communicate, allocate field workspaces, or validate distributed ownership.
+`public`; they are intentionally not exported. The mode and range primitives
+below are the numerical owners used by serial operators; they do not plan,
+execute or normalize an FFT, communicate, allocate field workspaces, or validate
+distributed ownership. The borrowed scaled-data operations described at the
+end execute existing grid FFT plans.
 
 `_fourier_metadata(n, L)` accepts the same nonempty tuple of positive `Int` sizes
 and tuple of positive finite Float32 or Float64 lengths as `FourierGrid`. It
@@ -87,3 +89,62 @@ The serial `FourierGrid` layout and operation order remain unchanged. Its scratc
 buffers still belong to one caller at a time; this API does not make shared
 workspaces thread-safe. The extraction does not promise GPU kernels or distributed
 solver/checkpoint support.
+
+## Borrowed scaled Fourier data
+
+`laplacian_scaled_data!(g, f)`, `deriv_scaled_data!(g, f, axis)`,
+`nyquist_scaled_data!(g, f, axis)` and
+`deriv_laplacian_scaled_data!(g, f, axis)` accept a serial `FourierGrid` and
+matching real Float32/Float64 input. Axis is an integer in `1:ndims(f)`.
+`laplacian_scaled_data!` also checks this floating-point domain at entry, before
+scratch writes or FFT execution, for manually assembled grids that bypass the
+public constructor. The canonical FFTW check rejects Float16/BigFloat with
+`ArgumentError`; non-`AbstractFloat` manual grids are outside its method domain.
+They return the same concrete NamedTuple:
+
+| Field | Meaning |
+| --- | --- |
+| `values` | Borrowed complex grid scratch, after a normalized inverse FFT |
+| `input_scale::T` | Finite common input scale, at least one |
+| `exponent::Int` | Additional binary power retained outside floating-point storage |
+| `ordinary::Bool` | True only when the Laplacian used unchanged serial arithmetic |
+
+The physical real result is `real(values)*input_scale*2^exponent`. Keep these
+factors through the downstream constitutive expression when an intermediate
+physical result could underflow or overflow. Converting the factors separately
+can lose the range these operations preserve. The caller owns physical output
+conversion/admission; the operations require finite normalized returned data,
+not representability of a separately restored physical intermediate.
+
+Consume each result before another operator on the same grid. `values` aliases
+`g.cbuf` and has no retained lifetime, reentrancy or thread-sharing guarantee.
+Input must be disjoint from that mutated scratch. Scratch must be disjoint from
+readonly Fourier metadata. Matching type, shape, one-based axes and these aliases
+are checked before writes. A readonly input which aliases metadata is safe if
+it is disjoint from mutated scratch. Failed input rescaling can leave partial
+scratch writes; no physical output has been published there.
+
+The Laplacian retains full even-grid Nyquist. The first derivative uses centered
+metadata, zeroing even Nyquist. The Nyquist operation is the existing positive
+real projector channel, zero on odd axes after finite-input validation. The
+derivative-Laplacian composes full-k squares with the centered odd derivative
+before either physical intermediate is rounded. Laplacian and
+derivative-Laplacian require the existing `_laplacian_gain` full-grid squared
+wavenumber admission even when an output channel is zero. No metadata/domain
+rescaling or change of Nyquist convention occurs.
+
+Individual mode/axis products use exact power-of-two normalization. This avoids
+losing a tiny active axis through a squared ratio against an inactive stiff one.
+Normalized transforms use the existing unit-gain input headroom and reject any
+nonzero input lost during necessary common downscaling. A tiny entire input is
+copied upward by an exact binary power before its forward FFT. Zero derivative
+axes and odd Nyquist axes need no transforms after validation. Ordinary
+Laplacian inputs retain the exact serial transform/multiplier operation order;
+conservative exponent headroom checks select normalization otherwise.
+
+Normalized scalar multiplier error is bounded at its positive operation scale
+by `gamma_(D+3)*sum(abs(exact terms))`, plus at most half a least-subnormal unit
+per shifted axis term. This is distinct from FFTW error and cancellation in the
+complete real-space result. High-precision DFT tests check the FFT/source-scale
+behavior; these operations do not promise exact Fourier coefficients or a
+relative error bound on every arbitrarily canceled output.

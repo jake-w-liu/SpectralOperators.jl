@@ -14,9 +14,12 @@ public _fourier_metadata, _apply_ik_store!, _apply_ik_store_scaled!, _apply_ik_a
 public _curl_component_store!, _apply_laplacian_multiplier!, _laplacian_gain
 public _project_fourier_modes!, _apply_exp_filter_multiplier!, _apply_two_thirds_mask!
 public _fft_safe_magnitude, _fft_input_scale, _copy_fft_input!, _store_fft_output!
+public laplacian_scaled_data!, deriv_scaled_data!, nyquist_scaled_data!
+public deriv_laplacian_scaled_data!
 
 include("periodic_fourier.jl")
 include("differential_operators.jl")
+include("scaled_differential_operators.jl")
 include("divergence_control.jl")
 include("filters.jl")
 include("fdx_fourier_yz.jl")

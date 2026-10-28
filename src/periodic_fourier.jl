@@ -40,9 +40,7 @@ end
 
 @inline function _require_fftw_float(::Type{T}, name::Symbol) where {T<:AbstractFloat}
     (T === Float32 || T === Float64) || throw(
-        ArgumentError(
-            "$(name) supports only Float32 and Float64 with the FFTW backend; got $(T)",
-        ),
+        ArgumentError("$(name) supports only Float32 and Float64 with the FFTW backend; got $(T)"),
     )
     return nothing
 end
@@ -83,9 +81,8 @@ function _fourier_metadata(
     all(l -> isfinite(l) && l > zero(T), L) ||
         throw(ArgumentError("domain lengths must be positive and finite"))
     dx = ntuple(d -> L[d] / n[d], D)
-    all(d -> isfinite(dx[d]) && dx[d] > zero(T), 1:D) || throw(
-        ArgumentError("grid spacings must be positive, finite, and representable as $T"),
-    )
+    all(d -> isfinite(dx[d]) && dx[d] > zero(T), 1:D) ||
+        throw(ArgumentError("grid spacings must be positive, finite, and representable as $T"))
     kscale = ntuple(d -> _checked_fourier_scale(T, n[d], L[d], Symbol("L[$d]")), D)
     midx = ntuple(D) do d
         N = n[d]
@@ -117,10 +114,7 @@ function _fourier_metadata(
     return (; n, L, dx, midx, kfull, ik, kvec)
 end
 
-function FourierGrid(
-    n::Tuple{Int,Vararg{Int}},
-    L::Tuple{T,Vararg{T}},
-) where {T<:AbstractFloat}
+function FourierGrid(n::Tuple{Int,Vararg{Int}}, L::Tuple{T,Vararg{T}}) where {T<:AbstractFloat}
     metadata = _fourier_metadata(n, L)
     D = length(n)
     (; dx, midx, kfull, ik, kvec) = metadata
@@ -153,15 +147,12 @@ end
     g::FourierGrid{D,T},
 ) where {D,T}
     eltype(a) === T || throw(
-        ArgumentError(
-            "$(name) element type $(eltype(a)) does not match grid element type $(T)",
-        ),
+        ArgumentError("$(name) element type $(eltype(a)) does not match grid element type $(T)"),
     )
     size(a) == g.n ||
         throw(DimensionMismatch("$(name) size $(size(a)) does not match grid size $(g.n)"))
-    axes(a) == axes(g.cbuf) || throw(
-        DimensionMismatch("$(name) axes $(axes(a)) must be one-based axes $(axes(g.cbuf))"),
-    )
+    axes(a) == axes(g.cbuf) ||
+        throw(DimensionMismatch("$(name) axes $(axes(a)) must be one-based axes $(axes(g.cbuf))"))
     return nothing
 end
 
@@ -176,13 +167,10 @@ end
             "$(name)[$c] element type $(eltype(a)) does not match grid element type $(T)",
         ),
     )
-    size(a) == g.n || throw(
-        DimensionMismatch("$(name)[$c] size $(size(a)) does not match grid size $(g.n)"),
-    )
+    size(a) == g.n ||
+        throw(DimensionMismatch("$(name)[$c] size $(size(a)) does not match grid size $(g.n)"))
     axes(a) == axes(g.cbuf) || throw(
-        DimensionMismatch(
-            "$(name)[$c] axes $(axes(a)) must be one-based axes $(axes(g.cbuf))",
-        ),
+        DimensionMismatch("$(name)[$c] axes $(axes(a)) must be one-based axes $(axes(g.cbuf))"),
     )
     return nothing
 end
@@ -224,6 +212,8 @@ The scalar overload is the supported backend primitive; see the backend contract
     return ratio < floatmax(T) ? nextfloat(ratio) : floatmax(T)
 end
 
+@inline _fft_input_loses_nonzero(value, scaled) = !iszero(value) && iszero(scaled)
+
 @inline function _prepare_fft_input!(
     dst::AbstractArray{Complex{T}},
     field::AbstractArray{T},
@@ -235,20 +225,15 @@ end
         dst[I] = value
         magnitude = max(magnitude, abs(value))
     end
-    isfinite(magnitude) ||
-        throw(ArgumentError("spectral operator input values must be finite"))
+    isfinite(magnitude) || throw(ArgumentError("spectral operator input values must be finite"))
     safe_magnitude = _fft_safe_magnitude(T, length(field), gain)
     scale = _fft_input_scale(magnitude, safe_magnitude)
     if !isone(scale)
         @inbounds for I in eachindex(dst, field)
             scaled = field[I] / scale
-            !iszero(field[I]) &&
-                iszero(scaled) &&
-                throw(
-                    ArgumentError(
-                        "spectral input dynamic range is too wide for lossless rescaling",
-                    ),
-                )
+            _fft_input_loses_nonzero(field[I], scaled) && throw(
+                ArgumentError("spectral input dynamic range is too wide for lossless rescaling"),
+            )
             dst[I] = scaled
         end
     end
@@ -284,13 +269,9 @@ nonzero values lost to rescaling. Failure may leave partial scratch writes.
     else
         @inbounds for I in eachindex(dst, field)
             scaled = field[I] / scale
-            !iszero(field[I]) &&
-                iszero(scaled) &&
-                throw(
-                    ArgumentError(
-                        "spectral input dynamic range is too wide for lossless rescaling",
-                    ),
-                )
+            _fft_input_loses_nonzero(field[I], scaled) && throw(
+                ArgumentError("spectral input dynamic range is too wide for lossless rescaling"),
+            )
             dst[I] = scaled
         end
     end
@@ -313,18 +294,13 @@ Caller provides disjoint storage with matching logical axes and precision.
 end
 
 # These checks use logical axes, never the memory order or local array lengths.
-@inline function _require_mode_axis(
-    a::AbstractArray{<:Any,D},
-    metadata::Vector,
-    j::Int,
-) where {D}
+@inline function _require_mode_axis(a::AbstractArray{<:Any,D}, metadata::Vector, j::Int) where {D}
     1 <= j <= D || throw(ArgumentError("axis $j out of range 1:$D"))
     axis = axes(a, j)
     isempty(axis) ||
         (first(axis) >= 1 && last(axis) <= length(metadata)) ||
         throw(DimensionMismatch("logical Fourier axis $j is outside its full metadata"))
-    Base.mightalias(a, metadata) &&
-        throw(ArgumentError("Fourier output must not alias metadata"))
+    Base.mightalias(a, metadata) && throw(ArgumentError("Fourier output must not alias metadata"))
     return nothing
 end
 
@@ -334,9 +310,7 @@ end
     dst === src ||
         !Base.mightalias(dst, src) ||
         throw(
-            ArgumentError(
-                "Fourier kernel output may alias an input only by exact object identity",
-            ),
+            ArgumentError("Fourier kernel output may alias an input only by exact object identity"),
         )
     return nothing
 end
@@ -359,9 +333,8 @@ end
     n::NTuple{D,Int},
 ) where {D}
     for d = 1:D
-        n[d] > 0 && length(midx[d]) == n[d] || throw(
-            DimensionMismatch("Fourier mode metadata must match the positive global size"),
-        )
+        n[d] > 0 && length(midx[d]) == n[d] ||
+            throw(DimensionMismatch("Fourier mode metadata must match the positive global size"))
     end
     _require_mode_metadata(a, midx)
     return nothing

@@ -104,6 +104,11 @@ Baseline metadata records every tracked source hash. Retain all failures.
 
 ## Release and reproducible consumption
 
+Current registry check (2026-10-29): General contains 0.1.3 through 0.1.6.
+The original 0.1.3 release preparation and failed preflight below are historical.
+The current scaled-source release gates live in the
+[verification record](SCALED_FOURIER_VERIFICATION.md).
+
 Prepare SpectralOperators 0.1.3 for the supported additions, with minimum/latest
 Julia Linux/macOS CI added to the release gates. HPIC must raise its minimum
 compat to `0.1.3` in a separate parent-owned integration commit. The accepted
@@ -119,8 +124,8 @@ the minimal General `Versions.toml` patch against pinned General commit
 `a514710d144c744795f8eab8e4bfe7c8bec647ed`. Existing General dependency/compat
 ranges cover 0.1.3. Root coordinates commit/push, exact-commit CI, actual registry
 publication and tag/tree consistency. Preparation sends no registration-bot or
-maintainer message. Publication, registry availability and GitHub CI are pending;
-they are not implied by the local test results.
+maintainer message. These were the original preparation limits. General now
+contains 0.1.3; current release status must be checked independently of local tests.
 
 ## Progress
 
@@ -135,7 +140,8 @@ they are not implied by the local test results.
 - [x] Review complete production/test diff, compiler reports and resource evidence.
 - [x] Complete final evidence audit: 1,309 source/resource/artifact checks.
 - [x] Prepare the 0.1.3 publication path and retained registry-failure evidence.
-- [ ] Parent coordinates accepted release, HPIC minimum version and green CI.
+- [x] Shared primitives are registered in General starting at 0.1.3.
+- [ ] Current release/consumer CI gates are tracked in the linked verification record.
 
 Final V6 verification on **each** Julia 1.12.7 and 1.13.2: 7,620 full-package
 assertions, 238 serial quality/resource checks and 2,245 complete-state replay
@@ -169,10 +175,11 @@ Production remains byte-identical to V4. Latency acceptance has not run.
   all owned callers now call the sole `_laplacian_gain` owner directly. No
   external callers were found in sibling HPIC/FourierPSTD source. This avoids
   introducing an unnecessary compatibility wrapper for a private implementation.
-- Registry preflight: current General commit
+- Historical registry preflight: the then-current General commit
   `a514710d144c744795f8eab8e4bfe7c8bec647ed` ends at 0.1.2. A clean project with
   minimum 0.1.3 fails resolution visibly on Julia 1.12.7 and 1.13.2. Local verification is
-  not a release; registry publication and clean consumer success remain pending.
+  not a release. This failure is retained as historical evidence; it is not the
+  current registry state or a current consumer-resolution result.
 
 - Candidate V3 failed to load on both runtimes: JuliaFormatter 1.0.62 changed
   `public _fourier_metadata` into the identifier `public_fourier_metadata` (and
