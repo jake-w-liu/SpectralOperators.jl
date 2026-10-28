@@ -1,5 +1,11 @@
 # Full-operation inverse FFT headroom
 
+This is the retained 2026-10-27 design and local verification record. The repair
+is registered, tagged and released in 0.1.5; see the
+[release provenance](SCALED_FOURIER_VERIFICATION.md#release-provenance).
+The pre-edit baseline and future-tense proposal below are historical. Downstream
+integration is owned by HPIC's capability plan, not this sealed package record.
+
 ## Pre-Edit Brief (2026-10-27)
 
 - Mode: repair shared transform-range policy; keep the infinite-strength repair frozen separately.
@@ -19,4 +25,6 @@
 - [x] Trace both normalized inverse owners and isolate the failing unnormalized stage.
 - [x] Implement shared headroom and permanent regressions: full SO7,738 assertions pass on Julia1.12.7/1.13.3. Ordinary144 profiles/432 samples per runtime (including16 transverse derivative cases) preserve baseline full physical-state hashes and0B warmed allocation; transverse concrete JET clean.
 - [x] Complete both-runtime numerical, compiler/resource and MPI matrices: MPI1/2/4/8 complete operator plus independent convolution suites all exit0;22 full compiler blocks/runtime exactly match0.1.4 parent after source-root replacement only, including frames/signatures/messages; Aqua HPIC9/SO10. Evidence `distributed-inverse-headroom/final-local-audit.json` verifies22 terminal0 commands. The projection bound docstring correction changes documentation only, preserves source line count and exact function-body bytes, and is pinned separately.
-- [ ] Root publication, dependency resolution and exact-SHA CI.
+- [x] Dependency publication, registration and tagged release; see the release record.
+
+Consumer resolution and CI evidence are maintained by the consumer implementation plan.

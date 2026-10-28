@@ -1,6 +1,8 @@
 # Normalized Fourier multiplier store boundary
 
-Status (2026-10-29): complete both-runtime local gates and independent root review pass. The [verification record](SCALED_FOURIER_VERIFICATION.md) owns results and remaining publication, CI, registration and HPIC consumer gates.
+Sealed design and experiment record, 2026-10-29. The repair is included in
+released 0.1.7. The [verification record](SCALED_FOURIER_VERIFICATION.md) owns
+package results, release provenance and the separate consumer boundary.
 
 `FourierGrid.cbuf` and the `CartesianIndices` created from that same array have the same rank. The private scalar store retains that relationship in its argument types, then delegates conversion and bounds checking to the original Base assignment. The multiplier keeps its Cartesian traversal and complete scalar arithmetic. There is no new public API, retained allocation, unchecked cast, bounds suppression or fallback.
 
@@ -14,6 +16,8 @@ The new-name Cartesian-store experiment on Julia 1.12.7 clears all four unrestri
 - [x] Complete source inverse, formatter/idempotence and locked environment preparation.
 - [x] Complete both-runtime provider/native-image and normal scientific/compiler/resource/package gates.
 - [x] Review complete reports, exact final source and compatibility documentation.
-- [ ] Commit/push, exact-SHA CI, Julia General registration and downstream integration.
+- [x] Dependency commit/push, four exact-SHA CI jobs, General registration and release.
+
+Downstream HPIC acceptance remains in the consumer capability plan linked by the verification record.
 
 [Zero-owner prerequisite](SCALED_ZERO_INFERENCE_PLAN.md) and [scaled-source contract](SCALED_FOURIER_SOURCE_PLAN.md) remain separate records. A successful primitive or package run alone does not accept HPIC hyperresistive composition.

@@ -1,5 +1,11 @@
 # Exponential filter at infinite converted strength
 
+This is the retained 2026-10-27 design and local verification record. The repair
+is registered, tagged and released in 0.1.4; see the
+[release provenance](SCALED_FOURIER_VERIFICATION.md#release-provenance).
+The pre-edit baseline and future-tense proposal below are historical. Downstream
+integration is owned by HPIC's capability plan, not this sealed package record.
+
 ## Pre-Edit Brief (2026-10-27)
 
 - Mode: repair the canonical shared filter multiplier.
@@ -19,6 +25,10 @@
 - [x] Implement and verify serial/shared-kernel regression: 7,674 package assertions on Julia 1.12.7 and 1.13.3; 128 finite-strength profiles per runtime reproduce baseline hashes and three zero-allocation samples exactly.
 - [x] Verify distributed consumer across MPI1/2/4/8 on Julia1.12.7 and1.13.3; every operator-suite launcher exits0.
 - [x] Review compiler/resources:22 full compiler blocks per runtime exactly match registered0.1.3 after checked source-root replacement;128 finite-strength profiles/384 samples per runtime match baseline bytes and0B allocations. Aqua and AST-preserving formatter gates pass.
-- [ ] Root publication, registry-only0.1.4 consumer resolution and exact-SHA CI.
+- [x] Dependency publication, registration and tagged release; see the release record.
 
-The separate unnormalized-inverse overflow defect is retained in `INVERSE_FFT_HEADROOM_REPAIR.md` in its isolated0.1.5 worktree; this fix does not close that defect or CAP003. Complete local evidence/handoff is `HybridPlasmaPIC-audit-evidence/2026-10-27/distributed-takeover/HANDOFF.md`.
+Consumer resolution and CI evidence are maintained by the consumer implementation plan.
+
+The separate unnormalized-inverse repair is recorded in
+[INVERSE_FFT_HEADROOM_REPAIR.md](INVERSE_FFT_HEADROOM_REPAIR.md) and released in
+0.1.5. Neither package repair closes the broader consumer CAP-003 scope. Complete local evidence/handoff is `HybridPlasmaPIC-audit-evidence/2026-10-27/distributed-takeover/HANDOFF.md`.

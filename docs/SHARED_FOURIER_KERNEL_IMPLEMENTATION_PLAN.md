@@ -1,6 +1,11 @@
 # Shared Fourier kernels: CAP-003A
 
-Parent: `cc515cfc3396e616b8e42b9539e1effcab2a069c` (0.1.2).
+This page retains the original design, verification and failed preflight history.
+The extraction is released starting at 0.1.3; its pre-edit descriptions below
+refer to the historical parent. The [verification record](SCALED_FOURIER_VERIFICATION.md)
+owns release provenance and the downstream boundary.
+
+Pre-edit parent: `cc515cfc3396e616b8e42b9539e1effcab2a069c` (0.1.2).
 Scope: shared numerical primitives only. MPI transport, reductions, ownership,
 Pencil storage, distributed solvers and HPIC precision remain separate work.
 
@@ -104,10 +109,10 @@ Baseline metadata records every tracked source hash. Retain all failures.
 
 ## Release and reproducible consumption
 
-Current registry check (2026-10-29): General contains 0.1.3 through 0.1.6.
+The [verification and release record](SCALED_FOURIER_VERIFICATION.md#release-provenance)
+owns checked publication evidence and links to authoritative registry/tag state.
 The original 0.1.3 release preparation and failed preflight below are historical.
-The current scaled-source release gates live in the
-[verification record](SCALED_FOURIER_VERIFICATION.md).
+Their future tense records the pre-edit contract, not unfinished dependency publication.
 
 Prepare SpectralOperators 0.1.3 for the supported additions, with minimum/latest
 Julia Linux/macOS CI added to the release gates. HPIC must raise its minimum
@@ -141,7 +146,9 @@ contains 0.1.3; current release status must be checked independently of local te
 - [x] Complete final evidence audit: 1,309 source/resource/artifact checks.
 - [x] Prepare the 0.1.3 publication path and retained registry-failure evidence.
 - [x] Shared primitives are registered in General starting at 0.1.3.
-- [ ] Current release/consumer CI gates are tracked in the linked verification record.
+- [x] Dependency release provenance reconciled in the linked verification record.
+
+Consumer CI and integration gates are maintained in HPIC's capability plan.
 
 Final V6 verification on **each** Julia 1.12.7 and 1.13.2: 7,620 full-package
 assertions, 238 serial quality/resource checks and 2,245 complete-state replay

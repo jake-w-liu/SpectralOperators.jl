@@ -168,11 +168,14 @@ divergence-free projection, Nyquist handling, filters, dealiasing, FFTW wisdom,
 binomial smoothing, mixed SBP/Fourier behavior, defensive shape and alias checks,
 and steady-state zero allocation for the main periodic Fourier operators.
 
-## Registration Readiness
+## Releases and verification
 
-The package has its own git repository and license file. Before Julia General
-registration, run the normal release checks from a clean checkout and tag the
-release intended for registration.
+[General](https://github.com/JuliaRegistries/General/blob/master/S/SpectralOperators/Versions.toml)
+owns registered version/tree records; [GitHub releases](https://github.com/jake-w-liu/SpectralOperators.jl/releases)
+provide tags and release notes. The [verification record](docs/SCALED_FOURIER_VERIFICATION.md)
+distinguishes checked package gates from downstream integration and resource limits.
+For a new release, run the normal checks from a clean checkout, register the tested
+commit, then tag that exact registered source.
 
 ## Backend integration
 

@@ -1,9 +1,37 @@
-# Scaled Fourier source verification
+# Scaled Fourier verification and release record
 
-Checked 2026-10-29. The tested source is `816e0c7ff0a0156e781f14d45404c712c146d088`.
-The publication composition preserves every tested non-Markdown byte and mode.
-This record accepts bounded local package gates; exact-commit GitHub CI,
-registration and HPIC consumer integration remain required.
+Sealed record, 2026-10-29. SpectralOperators 0.1.7 is registered, tagged and
+released from commit `600cd262dd1d5fa71b378448713ab2f50c404bb3`, tree
+`9074d7ef57054e4772f45134125eb4ec7125ef79`. Its 20 non-Markdown files preserve
+every tested byte and mode of `816e0c7ff0a0156e781f14d45404c712c146d088`.
+All four Linux/macOS minimum/latest jobs pass in the
+[exact-revision CI run](https://github.com/jake-w-liu/SpectralOperators.jl/actions/runs/40784524878);
+each full raw log records 26,886 passing assertions on Julia 1.12.7 or 1.13.3.
+CI runs the package and Aqua suites. The complete compiler disposition below
+comes from the source-identical paired local campaign.
+
+Read [General's version/tree records](https://github.com/JuliaRegistries/General/blob/master/S/SpectralOperators/Versions.toml),
+[GitHub releases](https://github.com/jake-w-liu/SpectralOperators.jl/releases) and
+[CI](https://github.com/jake-w-liu/SpectralOperators.jl/actions) for later state.
+This page records checked releases and tests; it does not maintain a live queue.
+
+## Release provenance
+
+| Release | Included change |
+| --- | --- |
+| [0.1.3](https://github.com/jake-w-liu/SpectralOperators.jl/releases/tag/v0.1.3) | Qualified reusable Fourier kernels; its missing annotated tag/release was restored against the exact already registered source |
+| [0.1.4](https://github.com/jake-w-liu/SpectralOperators.jl/releases/tag/v0.1.4) | Infinite converted-strength exponential filter |
+| [0.1.5](https://github.com/jake-w-liu/SpectralOperators.jl/releases/tag/v0.1.5) | Full-operation inverse-FFT headroom |
+| [0.1.6](https://github.com/jake-w-liu/SpectralOperators.jl/releases/tag/v0.1.6) | Full-Laplacian Nyquist energy channel |
+| [0.1.7](https://github.com/jake-w-liu/SpectralOperators.jl/releases/tag/v0.1.7) | Borrowed normalized source channels and canonical floor, zero-buffer and Cartesian store repairs |
+
+The 0.1.7 [General request](https://github.com/JuliaRegistries/General/pull/173877)
+merged on 2026-10-28 UTC. The annotated tag dereferences to the registered commit;
+the public release and complete release notes were read back. Root receipt
+`so017-registration-tag-release-actual-root-review-v1.json` has SHA-256
+`5085411258e2d6038c7a3111425879c900f047a18853bf0f46b5c63aeaab3fb3`.
+
+## Bounded local verification
 
 The four borrowed operators retain coefficient-scaled source data through
 intermediate range loss. Their supported behavior and lifetime are defined in
@@ -39,9 +67,11 @@ immutable evidence namespaces. They are not results for the final candidate.
 - [x] Canonical source/caller review, exact source inverse and formatter checks.
 - [x] Both-runtime normal numerical, compatibility, resource and complete quality gates.
 - [x] Independent complete root postflight.
-- [ ] Publication commit and four exact-SHA Linux/macOS GitHub jobs.
-- [ ] Julia General registration, tag and release.
-- [ ] HPIC consumer composition and its separate physical/compiler/resource/CI gates.
+- [x] Publication commit and four exact-SHA Linux/macOS GitHub jobs.
+- [x] Julia General registration, tag and release.
+
+HPIC consumer composition and its separate physical/compiler/resource/CI gates
+remain open in the [consumer capability plan](https://github.com/jake-w-liu/HybridPlasmaPIC.jl/blob/main/docs/PLASMA_COMPLETENESS_IMPLEMENTATION_PLAN.md#cap-011--electron-transport-and-complete-energy-accounting).
 
 Native/GMP peak accounting and exclusive latency remain unaccepted. The Julia
 allocation results do not establish either. Full exponent-range coupled physics,

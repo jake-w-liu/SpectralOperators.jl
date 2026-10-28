@@ -1,9 +1,9 @@
 # Canonical scaled-Laplacian floor repair: pre-edit work order V1
 
-Current status (2026-10-29): the concrete floor, canonical public type admission,
+Sealed design and verification record (2026-10-29): the concrete floor, canonical public type admission,
 zero-buffer and Cartesian store repairs are integrated and pass the complete
 both-runtime normal campaign and independent root postflight. Actual results and
-remaining release/consumer gates are owned by the
+release provenance and the separate consumer boundary are owned by the
 [verification record](SCALED_FOURIER_VERIFICATION.md). Earlier failed candidates,
 including the first docstring AST fixture and public zero-fill reports, remain
 preserved. Their failures do not describe the final candidate.
@@ -113,7 +113,7 @@ A new universal unsupported-type error policy is outside this minimal repair.
 checks pass. Both exact provider-graph/hash preparations pass.
 - [x] Final floor/zero/store normal campaign and complete root postflight.
 - [x] Classify every full compiler and resource delta under unchanged gates.
-- [ ] Root publication/main push, four dependency CI jobs and registration/release.
+- [x] Dependency publication/main push, four exact-SHA CI jobs and registration/release.
 - [ ] Separate HPIC36 consumer integration and its complete acceptance gates.
 
 Any added report, changed supported bit pattern, weakened zero-allocation result

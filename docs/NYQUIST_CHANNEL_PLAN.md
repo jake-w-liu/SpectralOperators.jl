@@ -1,8 +1,10 @@
 # Full-Laplacian Nyquist energy channel
 
-Base: `bdc5d3c919fe22df41dbb473ae107bc5a1d29e91` (0.1.5).
-The new operator is prepared as 0.1.6; registration and dependent release are
-separate acceptance gates.
+This is the sealed operator design and local verification record. The channel
+is registered, tagged and released in 0.1.6; see the
+[release provenance](SCALED_FOURIER_VERIFICATION.md#release-provenance).
+Its pre-edit base was `bdc5d3c919fe22df41dbb473ae107bc5a1d29e91` (0.1.5).
+HPIC hyperresistive composition remains a separate acceptance gate.
 
 `nyquist_channel!(out, f, g, d)` stores `N_d f = k_N P_N f`, where `P_N`
 is the orthogonal projection onto the Nyquist mode along axis d. It preserves
@@ -33,4 +35,4 @@ warmed allocations; minimum/latest Julia and the complete neighboring suite.
 - [x] Canonical operator and 248 independent assertions per runtime.
 - [x] Complete shared-operator suite and Aqua: 7986 assertions on Julia1.12.7
   and Julia1.13.3, with source at this candidate.
-- [ ] Parent review, commit promotion, exact-SHA CI and 0.1.6 registration.
+- [x] Dependency review, publication, registration and tagged release; see the release record.

@@ -1,16 +1,16 @@
 # Canonical scaled-buffer zero inference repair: implementation tracker
 
-Current status (2026-10-29): the helper and both zero owners, together with the
+Sealed design and verification record (2026-10-29): the helper and both zero owners, together with the
 Cartesian store repair, pass permanent tests and the full both-runtime normal
 campaign. Independent root postflight accepts bounded local gates; the
 [verification record](SCALED_FOURIER_VERIFICATION.md) owns actual results and
-remaining CI/registration/HPIC consumer work. All failed prior candidates and
+release provenance and the separate HPIC consumer boundary. All failed prior candidates and
 their full captures remain preserved.
 
 The source-supported pre-edit brief below is preserved as the reviewed design;
 its future tense is design history. Root owns global trackers and publication.
 
-# Canonical scaled-buffer zero inference repair: pre-edit brief V1
+## Historical pre-edit brief V1
 
 Historical pre-edit status (2026-10-29): design recorded before production edits. Root authorized a
 new isolated worktree from bb9d01df2789f8729e680cf36d15a3cefd15351d. Old
@@ -104,4 +104,6 @@ the two calls must reproduce bb9 executable source exactly.
 - [x] Isolated helper/two-call patch, store repair and permanent tests.
 - [x] Static inverse/AST/caller checks, formatter and locked preparation.
 - [x] Reviewed paired normal campaign and complete independent root postflight.
-- [ ] Publication/CI/registration and separate HPIC36 integration.
+- [x] Dependency publication, four exact-SHA CI jobs, registration, tag and release.
+
+Separate HPIC36 integration remains in the consumer capability plan linked by the verification record.

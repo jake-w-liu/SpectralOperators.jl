@@ -1,9 +1,9 @@
 # S2 source-aware range repair — pre-edit brief and implementation tracker
 
-Current status (2026-10-29): the final scaled-source implementation passes both
+Sealed design and verification record (2026-10-29): the final scaled-source implementation passes both
 runtime normal campaigns and independent root postflight. See the
-[verification record](SCALED_FOURIER_VERIFICATION.md) for actual gates and remaining
-publication/consumer work. The original clean595 package had two extra abstract
+[verification record](SCALED_FOURIER_VERIFICATION.md) for actual gates, release
+provenance and the separate consumer boundary. The original clean595 package had two extra abstract
 floor reports; subsequent floor, zero-buffer and Cartesian store repairs are
 integrated. All failed intermediate source and evidence remain preserved.
 
@@ -287,6 +287,11 @@ measurement rather than widening a failed gate afterward.
 
 ## Implementation and verification tracker
 
+This cross-package breakdown retains the original design boundary. The HPIC
+checkboxes describe acceptance scope; current implementation progress belongs to
+[the consumer capability plan](https://github.com/jake-w-liu/HybridPlasmaPIC.jl/blob/main/docs/PLASMA_COMPLETENESS_IMPLEMENTATION_PLAN.md#cap-011--electron-transport-and-complete-energy-accounting).
+Dependency completion and release evidence are recorded above.
+
 - [x] Preserve clean overflow candidate and failing/public typed evidence.
 - [x] Verify primary field loss, anisotropic/full-Nyquist and broad-span failures.
 - [x] Verify downstream required-rate failure and exact-cancellation distinction.
@@ -311,7 +316,7 @@ measurement rather than widening a failed gate afterward.
 - [ ] Root current-main composition; push/CI/registration; update global tracker
       with unsupported normalized-dt future work and actual supported boundary.
 
-## SO implementation receipt
+## Historical initial SO implementation receipt
 
 Candidate base: e92f326, isolated branch feature/scaled-fourier-sources-20261027;
 version0.1.7 reserved by root. Scope here is the four shared numerical owners;
@@ -337,5 +342,6 @@ those exact lines, preserves the full AST and passes two idempotent checks
 (18 assertions); no production formatting exclusion was introduced.
 
 Final local gates and root postflight are recorded in the linked verification record.
-HPIC integration remains separate and incomplete. Four dependency CI jobs,
-registration/tag/release and downstream compatibility promotion remain required.
+All four dependency CI jobs, registration, tag and release are complete; the
+verification record binds their exact source. HPIC integration remains separate
+and incomplete, with current progress owned by its capability plan.
