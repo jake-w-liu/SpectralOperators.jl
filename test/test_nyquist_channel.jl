@@ -3,14 +3,14 @@ using LinearAlgebra, Random
 # Independent real collocation matrices, including the even-derivative Nyquist.
 function channel_matrix(n, L, kind)
     h = 2pi / Float64(L)
-    modes = [m <= n ÷ 2 ? m : m - n for m = 0:n-1]
+    modes = [m <= n ÷ 2 ? m : m - n for m = 0:(n-1)]
     return [
         sum(modes) do m
             phase = 2pi * m * (i - j) / n
             kind === :lap ? -(h * m)^2 * cos(phase) / n :
             kind === :first ? (iseven(n) && m == n ÷ 2 ? 0.0 : -h * m * sin(phase) / n) :
             (iseven(n) && m == n ÷ 2 ? h * m * cos(phase) / n : 0.0)
-        end for i = 0:n-1, j = 0:n-1
+        end for i = 0:(n-1), j = 0:(n-1)
     ]
 end
 function channel_apply(M, a, d)
@@ -41,10 +41,8 @@ channel_allocated(out, a, g, d) = @allocated nyquist_channel!(out, a, g, d)
             scale = max(1.0, maximum(abs, reference))
             @test maximum(abs, out .- reference) <= 512eps(T) * scale
             deriv!(first, a, g, d)
-            @test maximum(
-                abs,
-                first .- channel_apply(channel_matrix(n[d], L[d], :first), a, d),
-            ) <= 512eps(T) * max(1.0, maximum(abs, first))
+            @test maximum(abs, first .- channel_apply(channel_matrix(n[d], L[d], :first), a, d)) <=
+                  512eps(T) * max(1.0, maximum(abs, first))
             heat += sum(abs2, Float64.(first)) + sum(abs2, Float64.(out))
             inplace = copy(a)
             nyquist_channel!(inplace, inplace, g, d)
@@ -55,8 +53,7 @@ channel_allocated(out, a, g, d) = @allocated nyquist_channel!(out, a, g, d)
         loss = -dot(vec(Float64.(a)), vec(Float64.(lap)))
         @test abs(loss - heat) <= 512eps(T) * max(1.0, loss, heat)
         # Full Laplacian is checked independently, not reconstructed from channels.
-        reference_lap =
-            sum(channel_apply(channel_matrix(n[d], L[d], :lap), a, d) for d = 1:D)
+        reference_lap = sum(channel_apply(channel_matrix(n[d], L[d], :lap), a, d) for d = 1:D)
         @test maximum(abs, lap .- reference_lap) <=
               512eps(T) * max(1.0, maximum(abs, reference_lap))
     end
@@ -88,16 +85,14 @@ end
         nyquist_channel!(out, a, g, 2)
         @test all(iszero, out)
         e = T === Float64 ? 600 : 70
-        for (amplitude, k) in
-            ((ldexp(one(T), e), T(4)), (ldexp(one(T), -e), ldexp(one(T), e ÷ 2)))
+        for (amplitude, k) in ((ldexp(one(T), e), T(4)), (ldexp(one(T), -e), ldexp(one(T), e ÷ 2)))
             gr = FourierGrid((8,), (T(8pi) / k,))
             ar = T[isodd(i) ? amplitude : -amplitude for i = 1:8]
             expected = (gr.kfull[1][5] * amplitude)
             result = similar(ar)
             nyquist_channel!(result, ar, gr, 1)
             @test all(isfinite, result)
-            @test maximum(abs, result .- (ar ./ amplitude) .* expected) <=
-                  8eps(T) * abs(expected)
+            @test maximum(abs, result .- (ar ./ amplitude) .* expected) <= 8eps(T) * abs(expected)
         end
     end
 end

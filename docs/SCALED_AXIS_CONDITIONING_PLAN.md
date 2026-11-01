@@ -54,6 +54,8 @@ odd Nyquist axes retain their existing early-return validation.
 - [x] Select JuliaFormatter 2.14.0, whose [upstream regression](https://github.com/JuliaEditorSupport/JuliaFormatter.jl/blob/v2.14.0/test/default_style.jl#L4984) covers Julia's
   `public` declarations. The initial v1 artifact joined these keywords to names;
   that patch was retained as evidence and was not applied.
+- [x] Review and apply the v2 runner's formatting artifact. The module's `public`
+  declarations remain byte-identical; final-revision CI is still required.
 - [ ] Pass minimum/latest Julia package/Aqua and consumer checks on GitHub.
 - [ ] Check formatting and complete compiler impact; measure public costs before
   making allocation or performance claims.

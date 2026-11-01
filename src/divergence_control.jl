@@ -9,12 +9,8 @@ Nyquist-zeroed derivative wavenumber is zero untouched. After projection the
 discrete divergence (same wavenumbers as [`divergence!`](@ref)) is zero to
 roundoff.
 """
-function project_divfree!(
-    B::Tuple{Vararg{AbstractArray{T,D},3}},
-    g::FourierGrid{D,T},
-) where {D,T}
-    D <= 3 ||
-        throw(ArgumentError("project_divfree! supports spatial dimension D ≤ 3; got $D"))
+function project_divfree!(B::Tuple{Vararg{AbstractArray{T,D},3}}, g::FourierGrid{D,T}) where {D,T}
+    D <= 3 || throw(ArgumentError("project_divfree! supports spatial dimension D ≤ 3; got $D"))
     for c = 1:3
         _require_grid_array(:component, c, B[c], g)
     end
@@ -61,13 +57,11 @@ Spatial dimension is 1–3; absent-axis components and null modes are unchanged.
     kvec::Tuple{Vector{T},Vararg{Vector{T}}},
 ) where {T}
     D = length(kvec)
-    1 <= D <= 3 ||
-        throw(ArgumentError("Fourier projection supports spatial dimensions 1–3"))
+    1 <= D <= 3 || throw(ArgumentError("Fourier projection supports spatial dimensions 1–3"))
     Bx, By, Bz = hats
     for c = 1:3
-        axes(hats[c]) == axes(Bx) || throw(
-            DimensionMismatch("Fourier projection arrays must have identical logical axes"),
-        )
+        axes(hats[c]) == axes(Bx) ||
+            throw(DimensionMismatch("Fourier projection arrays must have identical logical axes"))
         _require_mode_metadata(hats[c], kvec)
     end
     for c = 1:2, d = (c+1):3

@@ -18,9 +18,9 @@ function Base.similar(
     return FourierLogicalTile(Array{T}(undef, map(length, ranges)), ranges)
 end
 @inline Base.getindex(a::FourierLogicalTile{T,D}, I::Vararg{Int,D}) where {T,D} =
-    a.data[ntuple(d -> I[d] - first(a.ranges[d]) + 1, D)...]
+    a.data[ntuple(d->I[d]-first(a.ranges[d])+1, D)...]
 @inline function Base.setindex!(a::FourierLogicalTile{T,D}, x, I::Vararg{Int,D}) where {T,D}
-    a.data[ntuple(d -> I[d] - first(a.ranges[d]) + 1, D)...] = x
+    a.data[ntuple(d->I[d]-first(a.ranges[d])+1, D)...] = x
     return x
 end
 function fourier_tile(a::Array{T,D}, ranges; permuted = false) where {T,D}
@@ -47,10 +47,9 @@ function dense_fourier(a, inverse = false)
     N = length(a)
     [
         sum(
-            a[J] * cis(
-                (inverse ? 2π : -2π) *
-                sum((I[d] - 1) * (J[d] - 1) / n[d] for d = 1:ndims(a)),
-            ) for J in CartesianIndices(a)
+            a[J] *
+            cis((inverse ? 2π : -2π) * sum((I[d] - 1) * (J[d] - 1) / n[d] for d = 1:ndims(a))) for
+            J in CartesianIndices(a)
         ) / (inverse ? N : 1) for I in CartesianIndices(a)
     ]
 end
@@ -81,12 +80,12 @@ end
         )
         hats = ntuple(
             c -> [
-                Complex{T}(T(sin(c * sum(Tuple(I)))), T(cos(c * prod(Tuple(I)))))
-                for I in CartesianIndices(n)
+                Complex{T}(T(sin(c * sum(Tuple(I)))), T(cos(c * prod(Tuple(I))))) for
+                I in CartesianIndices(n)
             ],
             3,
         )
-        ranges = ntuple(d -> max(1, n[d] ÷ 2):n[d], D)
+        ranges = ntuple(d -> max(1, n[d]÷2):n[d], D)
         for permuted in (false, true)
             tiles = map(a -> fourier_tile(a, ranges; permuted), hats)
             for tile in tiles
@@ -120,15 +119,7 @@ end
             full = copy(hats[1])
             tile = fourier_tile(full, ranges; permuted)
             SOShared._curl_component_store!(full, hats[1], m.ik[1], 1, hats[2], m.ik[D], D)
-            SOShared._curl_component_store!(
-                tile,
-                tiles[1],
-                m.ik[1],
-                1,
-                tiles[2],
-                m.ik[D],
-                D,
-            )
+            SOShared._curl_component_store!(tile, tiles[1], m.ik[1], 1, tiles[2], m.ik[D], D)
             @test tile_equals(tile, full)
             for (f, args) in (
                 (SOShared._apply_laplacian_multiplier!, (m.kfull,)),
@@ -166,23 +157,16 @@ end
         tol = 128length(f) * eps(T)
         out = similar(f)
         for j = 1:D
-            ref =
-                real.(
-                    dense_fourier(
-                        [im * k[j][I[j]] * fh[I] for I in CartesianIndices(n)],
-                        true,
-                    ),
-                )
+            ref = real.(dense_fourier([im * k[j][I[j]] * fh[I] for I in CartesianIndices(n)], true))
             deriv!(out, f, g, j)
             @test isapprox(out, ref; atol = tol, rtol = tol)
         end
-        ref =
-            real.(
-                dense_fourier(
-                    [-sum(kf[d][I[d]]^2 for d = 1:D) * fh[I] for I in CartesianIndices(n)],
-                    true,
-                ),
-            )
+        ref = real.(
+            dense_fourier(
+                [-sum(kf[d][I[d]]^2 for d = 1:D) * fh[I] for I in CartesianIndices(n)],
+                true,
+            ),
+        )
         laplacian!(out, f, g)
         @test isapprox(out, ref; atol = tol, rtol = tol)
         projected = map(copy, vh)
@@ -207,10 +191,7 @@ end
             refhat = copy(fh)
             for I in CartesianIndices(n)
                 if filter == :exp
-                    r = maximum(
-                        d -> n[d] == 1 ? 0.0 : abs(modes[d][I[d]]) / (n[d] ÷ 2),
-                        1:D,
-                    )
+                    r = maximum(d -> n[d] == 1 ? 0.0 : abs(modes[d][I[d]]) / (n[d] ÷ 2), 1:D)
                     refhat[I] *= exp(-5 * r^6)
                 elseif any(d -> 3abs(modes[d][I[d]]) >= n[d], 1:D)
                     refhat[I] = 0
@@ -260,13 +241,7 @@ end
         @test isequal(bad.data, fill(1.0 + 2.0im, 8))
     end
     for (alpha, p) in ((-1.0, 3), (NaN, 3), (1.0, 0))
-        @test_throws ArgumentError SO._apply_exp_filter_multiplier!(
-            a,
-            m.midx,
-            m.n,
-            alpha,
-            p,
-        )
+        @test_throws ArgumentError SO._apply_exp_filter_multiplier!(a, m.midx, m.n, alpha, p)
         @test isequal(a, b)
     end
     # Empty tiles do no reads/writes, even when their empty axes start outside metadata.
@@ -284,11 +259,8 @@ end
 function shared_kernel_calls(T, n, permuted)
     D = length(n)
     m = SpectralOperators._fourier_metadata(n, ntuple(d -> T(2π + d), D))
-    ranges = ntuple(d -> max(1, n[d] ÷ 2):n[d], D)
-    a = [
-        Complex{T}(T(sin(sum(Tuple(I)))), T(cos(prod(Tuple(I))))) for
-        I in CartesianIndices(n)
-    ]
+    ranges = ntuple(d -> max(1, n[d]÷2):n[d], D)
+    a = [Complex{T}(T(sin(sum(Tuple(I)))), T(cos(prod(Tuple(I))))) for I in CartesianIndices(n)]
     x = fourier_tile(a, ranges; permuted)
     y = fourier_tile(a, ranges; permuted)
     z = fourier_tile(a, ranges; permuted)
@@ -397,9 +369,6 @@ end
             power,
         )
         @test isequal(modes[1, 1, 1], dc)
-        @test all(
-            I -> I == CartesianIndex(1, 1, 1) || iszero(modes[I]),
-            CartesianIndices(modes),
-        )
+        @test all(I -> I == CartesianIndex(1, 1, 1) || iszero(modes[I]), CartesianIndices(modes))
     end
 end

@@ -110,11 +110,7 @@ end
         g2, f_lo = cosine_mode(T, n, 15)
         fl = copy(f_lo)
         dealias_two_thirds!(fl, g2)
-        @test isapprox(
-            maximum(abs, fl),
-            maximum(abs, f_lo);
-            rtol = (T == Float64 ? 1e-10 : 1e-4),
-        )
+        @test isapprox(maximum(abs, fl), maximum(abs, f_lo); rtol = (T == Float64 ? 1e-10 : 1e-4))
 
         # Exact N/3 boundary mode m=16 must be zeroed; otherwise cos(16x)^2
         # aliases back to retained mode -16 on an N=48 grid.
@@ -232,8 +228,7 @@ end
     for T in (Float32, Float64), p in (8, 10000, typemax(Int))
         n = (8, 4, 4)
         g = FourierGrid(n, (T(2), T(3), T(5)))
-        original =
-            [T(3) + T(cos(2pi * (i - 1) / n[1])) for i = 1:n[1], j = 1:n[2], k = 1:n[3]]
+        original = [T(3) + T(cos(2pi * (i - 1) / n[1])) for i = 1:n[1], j = 1:n[2], k = 1:n[3]]
         for alpha in (T(Inf), big(2)^2048)
             f = copy(original)
             @test exp_filter!(f, g; α = alpha, p) === f

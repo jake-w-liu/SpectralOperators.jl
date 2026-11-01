@@ -3,10 +3,10 @@
 function inverse_cutoff_response(n)
     kernel = setprecision(BigFloat, 256) do
         cutoff = (n - 1) ÷ 3
-        [Float64(sum(cospi(BigFloat(2m) * j / n) for m = -cutoff:cutoff) / n) for j = 0:n-1]
+        [Float64(sum(cospi(BigFloat(2m) * j / n) for m = (-cutoff):cutoff) / n) for j = 0:(n-1)]
     end
     signs = sign.(kernel)
-    response = [sum(kernel[mod(x - j, n)+1] * signs[j+1] for j = 0:n-1) for x = 0:n-1]
+    response = [sum(kernel[mod(x-j, n)+1] * signs[j+1] for j = 0:(n-1)) for x = 0:(n-1)]
     return signs, response
 end
 
@@ -22,11 +22,11 @@ end
         grid = FourierGrid(n, (T(2), T(3), T(5)))
         for shift in (0, 5)
             input = [
-                amplitude * T(prod(signs[d][mod(I[d] - 1 - shift, n[d])+1] for d = 1:3)) for
+                amplitude * T(prod(signs[d][mod(I[d]-1-shift, n[d])+1] for d = 1:3)) for
                 I in CartesianIndices(n)
             ]
             expected = [
-                prod(response[d][mod(I[d] - 1 - shift, n[d])+1] for d = 1:3) for
+                prod(response[d][mod(I[d]-1-shift, n[d])+1] for d = 1:3) for
                 I in CartesianIndices(n)
             ]
             @test dealias_two_thirds!(input, grid) === input

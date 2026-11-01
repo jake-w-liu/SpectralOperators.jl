@@ -114,8 +114,10 @@ end
 
 function _prepare_normalized_input!(g::FourierGrid{D,T}, f, magnitude, axis, ::Val{K}) where {D,T,K}
     directional = K === :derivative || K === :nyquist || K === :derivative_laplacian
-    if !directional || !(T <: Union{Float32,Float64}) ||
-       rounding(T) !== RoundNearest || get_zero_subnormals()
+    if !directional ||
+       !(T <: Union{Float32,Float64}) ||
+       rounding(T) !== RoundNearest ||
+       get_zero_subnormals()
         return _prepare_scaled_input!(g, f, magnitude)
     end
     active = _axis_active_input_magnitude(f, axis)

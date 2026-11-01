@@ -230,15 +230,10 @@ total charge.
 `g` supplies the dimensionality and is the natural place the grid spacing lives;
 `field` must have the grid's shape.
 """
-function binomial_smooth!(
-    field::Array{T,D},
-    g::FourierGrid{D,T};
-    passes::Int = 1,
-) where {T,D}
+function binomial_smooth!(field::Array{T,D}, g::FourierGrid{D,T}; passes::Int = 1) where {T,D}
     passes >= 0 || throw(ArgumentError("passes must be non-negative, got $passes"))
-    size(field) == g.n || throw(
-        DimensionMismatch("field size $(size(field)) does not match grid size $(g.n)"),
-    )
+    size(field) == g.n ||
+        throw(DimensionMismatch("field size $(size(field)) does not match grid size $(g.n)"))
     passes == 0 && return field
     work = BinomialSmoothWorkspace(g)
     return binomial_smooth!(field, g, work; passes)
@@ -258,9 +253,8 @@ function binomial_smooth!(
     passes::Int = 1,
 ) where {T,D}
     passes >= 0 || throw(ArgumentError("passes must be non-negative, got $passes"))
-    size(field) == g.n || throw(
-        DimensionMismatch("field size $(size(field)) does not match grid size $(g.n)"),
-    )
+    size(field) == g.n ||
+        throw(DimensionMismatch("field size $(size(field)) does not match grid size $(g.n)"))
     passes == 0 && return field
     buf = work.buf
     length(buf) >= maximum(g.n) || throw(

@@ -106,8 +106,7 @@ Store the difference of two derivative products on global logical indices.
     _require_mode_axis(dst, plus_ik, plus_axis)
     _require_mode_axis(dst, minus_ik, minus_axis)
     @inbounds for I in CartesianIndices(dst)
-        dst[I] =
-            plus_hat[I] * plus_ik[I[plus_axis]] - minus_hat[I] * minus_ik[I[minus_axis]]
+        dst[I] = plus_hat[I] * plus_ik[I[plus_axis]] - minus_hat[I] * minus_ik[I[minus_axis]]
     end
     return dst
 end
@@ -137,8 +136,7 @@ function deriv!(
 end
 
 "Allocating convenience wrapper for [`deriv!`](@ref)."
-deriv(f::AbstractArray{T,D}, g::FourierGrid{D,T}, j::Int) where {D,T} =
-    deriv!(similar(f), f, g, j)
+deriv(f::AbstractArray{T,D}, g::FourierGrid{D,T}, j::Int) where {D,T} = deriv!(similar(f), f, g, j)
 
 """
     nyquist_channel!(out, f, g, j)
@@ -214,16 +212,14 @@ Divergence Σ_{j=1}^{D} ∂_j v[j] of a vector field. Only the first `D` (spatia
 components are used, so a 3-component velocity field works in any dimension.
 """
 function divergence!(out::AbstractArray{T,D}, v, g::FourierGrid{D,T}) where {D,T}
-    length(v) >= D ||
-        throw(ArgumentError("divergence! needs at least $D vector components"))
+    length(v) >= D || throw(ArgumentError("divergence! needs at least $D vector components"))
     _require_grid_array(:output, out, g)
     for j = 1:D
         _require_grid_array(:input, j, v[j], g)
     end
     gain = sum(d -> maximum(abs, g.kvec[d]), 1:D)
-    isfinite(gain) || throw(
-        ArgumentError("divergence spectral multiplier bound is not representable as $T"),
-    )
+    isfinite(gain) ||
+        throw(ArgumentError("divergence spectral multiplier bound is not representable as $T"))
     input_scale = _fft_input_scale(v, D, g, gain)
     fill!(g.abuf, zero(Complex{T}))
     for j = 1:D
@@ -350,11 +346,7 @@ Spectral Laplacian ∇²f = −|k|² f̂ (periodic). Used for hyperresistivity a
 diffusion terms. Throws an `ArgumentError` before mutating `out` when the
 largest squared grid wavenumber would overflow the grid element type.
 """
-function laplacian!(
-    out::AbstractArray{T,D},
-    f::AbstractArray{T,D},
-    g::FourierGrid{D,T},
-) where {D,T}
+function laplacian!(out::AbstractArray{T,D}, f::AbstractArray{T,D}, g::FourierGrid{D,T}) where {D,T}
     _require_grid_array(:input, f, g)
     _require_grid_array(:output, out, g)
     gain = _laplacian_gain(g.kfull)

@@ -30,13 +30,13 @@ function SBP1D(n::Integer, L::T) where {T<:AbstractFloat}
     dx = L / (n - 1)
     half_dx = dx / T(2)
     inv_dx = one(T) / dx
-    isfinite(dx) && dx > zero(T) &&
-        isfinite(half_dx) && half_dx > zero(T) &&
-        isfinite(inv_dx) ||
-        throw(ArgumentError(
-            "SBP domain length $L and size $n produce coefficients or norm " *
-            "weights that are not finite and representable as $T",
-        ))
+    isfinite(dx) && dx > zero(T) && isfinite(half_dx) && half_dx > zero(T) && isfinite(inv_dx) ||
+        throw(
+            ArgumentError(
+                "SBP domain length $L and size $n produce coefficients or norm " *
+                "weights that are not finite and representable as $T",
+            ),
+        )
     H = fill(dx, n)
     H[1] = half_dx
     H[n] = half_dx
@@ -44,8 +44,7 @@ function SBP1D(n::Integer, L::T) where {T<:AbstractFloat}
 end
 
 function _check_sbp_axis(name::Symbol, ax, n::Int)
-    ax == Base.OneTo(n) ||
-        throw(DimensionMismatch("$(name) axes $(ax) must be one-based 1:$n"))
+    ax == Base.OneTo(n) || throw(DimensionMismatch("$(name) axes $(ax) must be one-based 1:$n"))
     return nothing
 end
 
@@ -65,7 +64,7 @@ function sbp_deriv!(out::AbstractVector{T}, f::AbstractVector{T}, s::SBP1D{T}) w
     Base.mightalias(out, f) && throw(ArgumentError("sbp_deriv! output must not alias input"))
     @inbounds begin
         out[1] = (f[2] - f[1]) / dx                      # one-sided
-        for i = 2:n-1
+        for i = 2:(n-1)
             out[i] = (f[i+1] - f[i-1]) / (2dx)           # central
         end
         out[n] = (f[n] - f[n-1]) / dx                    # one-sided
@@ -78,15 +77,17 @@ sbp_deriv(f::AbstractVector{T}, s::SBP1D{T}) where {T} = sbp_deriv!(similar(f), 
 "Apply the SBP derivative along x (dim 1) of a 2-D array, column by column."
 function sbp_deriv_x!(out::AbstractMatrix{T}, f::AbstractMatrix{T}, s::SBP1D{T}) where {T}
     size(f, 1) == s.n || throw(DimensionMismatch("input first dimension $(size(f, 1)) ≠ $(s.n)"))
-    size(out) == size(f) || throw(DimensionMismatch("output size $(size(out)) does not match input size $(size(f))"))
-    axes(out) == axes(f) || throw(DimensionMismatch("output axes $(axes(out)) do not match input axes $(axes(f))"))
+    size(out) == size(f) ||
+        throw(DimensionMismatch("output size $(size(out)) does not match input size $(size(f))"))
+    axes(out) == axes(f) ||
+        throw(DimensionMismatch("output axes $(axes(out)) do not match input axes $(axes(f))"))
     _check_sbp_axis(:input_first_axis, axes(f, 1), s.n)
     Base.mightalias(out, f) && throw(ArgumentError("sbp_deriv_x! output must not alias input"))
     n = s.n
     dx = s.dx
     @inbounds for j in axes(f, 2)
         out[1, j] = (f[2, j] - f[1, j]) / dx
-        for i = 2:n-1
+        for i = 2:(n-1)
             out[i, j] = (f[i+1, j] - f[i-1, j]) / (2dx)
         end
         out[n, j] = (f[n, j] - f[n-1, j]) / dx
@@ -142,7 +143,7 @@ function _fourier_deriv_y_workspace(nx::Integer, ny::Integer, Ly::T) where {T<:A
     nyi = Int(ny)
     _checked_fourier_scale(T, nyi, Ly, :Ly)
     ky = Vector{T}(undef, nyi)
-    for m = 0:nyi-1
+    for m = 0:(nyi-1)
         mp = m <= nyi ÷ 2 ? m : m - nyi
         ky[m+1] = T(2π) * mp / Ly
     end
@@ -166,8 +167,11 @@ function FourierDerivYWorkspace(f::AbstractMatrix{T}, Ly::Real) where {T<:Abstra
 end
 
 function fourier_deriv_y!(out::Matrix{T}, f::Matrix{T}, work::FourierDerivYWorkspace{T}) where {T}
-    size(f) == (work.nx, work.ny) ||
-        throw(DimensionMismatch("input size $(size(f)) does not match workspace size $((work.nx, work.ny))"))
+    size(f) == (work.nx, work.ny) || throw(
+        DimensionMismatch(
+            "input size $(size(f)) does not match workspace size $((work.nx, work.ny))",
+        ),
+    )
     size(out) == size(f) ||
         throw(DimensionMismatch("output size $(size(out)) does not match input size $(size(f))"))
     gain = maximum(abs, work.ky)

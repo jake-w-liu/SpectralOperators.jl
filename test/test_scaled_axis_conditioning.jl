@@ -36,8 +36,10 @@ end
         else
             op = derivative(k)
         end
-        source = kind === :derivative_laplacian ?
-            laplacian(Q(g.kfull[1][2])) * original + original * transpose(laplacian(Q(g.kfull[2][2]))) : original
+        source =
+            kind === :derivative_laplacian ?
+            laplacian(Q(g.kfull[1][2])) * original +
+            original * transpose(laplacian(Q(g.kfull[2][2]))) : original
         reference = axis == 1 ? op * source : source * transpose(op)
         @test maximum(abs, reference) > 0
         data = directional_call(g, f, axis, kind)
@@ -49,7 +51,9 @@ end
         # These large transverse values are constant along the consumed axis.
         # Their subtraction is exact zero before any operand downscaling.
         constants = T[floatmax(T), nextfloat(zero(T)), -floatmax(T), -nextfloat(zero(T))]
-        f = axis == 1 ? repeat(reshape(constants, 1, 4), 4, 1) : repeat(reshape(constants, 4, 1), 1, 4)
+        f =
+            axis == 1 ? repeat(reshape(constants, 1, 4), 4, 1) :
+            repeat(reshape(constants, 4, 1), 1, 4)
         @test all(iszero, directional_call(g, f, axis, kind).values)
     end
 end
@@ -57,8 +61,12 @@ end
 @testset "Conditioning retains exact factors and unsafe cases use old preparation" begin
     for T in (Float32, Float64)
         g = FourierGrid((4,), (T(2pi),))
-        for (a, b) in ((one(T), nextfloat(one(T))), (nextfloat(zero(T)), -nextfloat(zero(T))),
-                       (floatmax(T)/T(1024), -floatmax(T)/T(1024)), (one(T), eps(T)/T(4)))
+        for (a, b) in (
+            (one(T), nextfloat(one(T))),
+            (nextfloat(zero(T)), -nextfloat(zero(T))),
+            (floatmax(T)/T(1024), -floatmax(T)/T(1024)),
+            (one(T), eps(T)/T(4)),
+        )
             value, exact = SO._axis_difference(a, b)
             @test exact == (Q(value) == Q(a) - Q(b))
         end

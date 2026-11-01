@@ -12,10 +12,10 @@ struct OffsetSbpVector{T,V<:AbstractVector{T}} <: AbstractVector{T}
 end
 
 Base.size(v::OffsetSbpVector) = size(v.data)
-Base.axes(v::OffsetSbpVector) = (v.first_index:(v.first_index + length(v.data) - 1),)
+Base.axes(v::OffsetSbpVector) = (v.first_index:(v.first_index+length(v.data)-1),)
 Base.IndexStyle(::Type{<:OffsetSbpVector}) = IndexLinear()
-Base.getindex(v::OffsetSbpVector, i::Int) = v.data[i - v.first_index + 1]
-Base.setindex!(v::OffsetSbpVector, x, i::Int) = (v.data[i - v.first_index + 1] = x)
+Base.getindex(v::OffsetSbpVector, i::Int) = v.data[i-v.first_index+1]
+Base.setindex!(v::OffsetSbpVector, x, i::Int) = (v.data[i-v.first_index+1] = x)
 
 struct OffsetSbpMatrix{T,V<:AbstractMatrix{T}} <: AbstractMatrix{T}
     data::V
@@ -24,13 +24,11 @@ struct OffsetSbpMatrix{T,V<:AbstractMatrix{T}} <: AbstractMatrix{T}
 end
 
 Base.size(A::OffsetSbpMatrix) = size(A.data)
-Base.axes(A::OffsetSbpMatrix) = (
-    A.first_i:(A.first_i + size(A.data, 1) - 1),
-    A.first_j:(A.first_j + size(A.data, 2) - 1),
-)
+Base.axes(A::OffsetSbpMatrix) =
+    (A.first_i:(A.first_i+size(A.data, 1)-1), A.first_j:(A.first_j+size(A.data, 2)-1))
 Base.IndexStyle(::Type{<:OffsetSbpMatrix}) = IndexCartesian()
-Base.getindex(A::OffsetSbpMatrix, i::Int, j::Int) = A.data[i - A.first_i + 1, j - A.first_j + 1]
-Base.setindex!(A::OffsetSbpMatrix, x, i::Int, j::Int) = (A.data[i - A.first_i + 1, j - A.first_j + 1] = x)
+Base.getindex(A::OffsetSbpMatrix, i::Int, j::Int) = A.data[i-A.first_i+1, j-A.first_j+1]
+Base.setindex!(A::OffsetSbpMatrix, x, i::Int, j::Int) = (A.data[i-A.first_i+1, j-A.first_j+1] = x)
 
 # Build f = sin(kx x) cos(ky y) cos(kz z) and exact ∂x f on a 2π^D grid (integer modes).
 function sincos_field(::Type{T}, n::NTuple{D,Int}, modes::NTuple{D,Int}) where {T,D}
@@ -245,7 +243,7 @@ end
     exact = collect((π / Lx) .* cos.(π .* x ./ Lx))
     out = similar(f)
     sbp_deriv!(out, f, s)
-    @test norm(out[2:end-1] .- exact[2:end-1]) / norm(exact[2:end-1]) < 2e-2
+    @test norm(out[2:(end-1)] .- exact[2:(end-1)]) / norm(exact[2:(end-1)]) < 2e-2
 
     u = collect(cos.(2π .* x ./ Lx))
     v = collect(sin.(π .* x ./ Lx))
@@ -263,19 +261,18 @@ end
 
     ny = 24
     Ly = T(2π)
-    y = range(zero(T), Ly; length = ny + 1)[1:end-1]
+    y = range(zero(T), Ly; length = ny + 1)[1:(end-1)]
     fy = repeat(reshape(collect(sin.(3 .* y)), 1, ny), 4, 1)
     dy = similar(fy)
     fourier_deriv_y!(dy, fy, Ly)
-    @test norm(dy .- repeat(reshape(collect(3 .* cos.(3 .* y)), 1, ny), 4, 1)) /
-          norm(dy) < 1e-12
+    @test norm(dy .- repeat(reshape(collect(3 .* cos.(3 .* y)), 1, ny), 4, 1)) / norm(dy) < 1e-12
 end
 
 @testset "mixed Fourier-y accepts Real lengths" begin
     T = Float32
     ny = 24
     Ly = 2π
-    y = T.(range(0.0, Ly; length = ny + 1)[1:end-1])
+    y = T.(range(0.0, Ly; length = ny + 1)[1:(end-1)])
     fy = repeat(reshape(sin.(T(3) .* y), 1, ny), 4, 1)
     exact = repeat(reshape(T(3) .* cos.(T(3) .* y), 1, ny), 4, 1)
 
@@ -391,7 +388,12 @@ end
     sw = BinomialSmoothWorkspace(g)
     @test_throws ArgumentError binomial_smooth!(copy(f), g, sw; passes = -1)
     @test_throws DimensionMismatch binomial_smooth!(zeros(T, 7, 8), g, sw; passes = 1)
-    @test_throws DimensionMismatch binomial_smooth!(copy(f), g, BinomialSmoothWorkspace{T}(zeros(T, 1)); passes = 1)
+    @test_throws DimensionMismatch binomial_smooth!(
+        copy(f),
+        g,
+        BinomialSmoothWorkspace{T}(zeros(T, 1));
+        passes = 1,
+    )
 
     aliased_field = collect(T, 1:8)
     aliased_original = copy(aliased_field)
@@ -536,7 +538,7 @@ end
     N = 16
     k = 100.0
     L = 2π / k
-    x = (0:N-1) .* (L / N)
+    x = (0:(N-1)) .* (L / N)
     gk = FourierGrid((N,), (L,))
     first_amplitude = 1e306
     ffirst = first_amplitude .* sin.(k .* x)
@@ -556,11 +558,7 @@ end
     # dynamic range cannot be represented after scaling.
     gtiny = FourierGrid((4, 1), (2π, 1.0))
     tiny = nextfloat(0.0)
-    mixed = (
-        fill(1e308, 4, 1),
-        reshape([tiny, 0.0, -tiny, 0.0], 4, 1),
-        zeros(4, 1),
-    )
+    mixed = (fill(1e308, 4, 1), reshape([tiny, 0.0, -tiny, 0.0], 4, 1), zeros(4, 1))
     mixed_before = copy.(mixed)
     @test_throws ArgumentError project_divfree!(mixed, gtiny)
     @test mixed == mixed_before
