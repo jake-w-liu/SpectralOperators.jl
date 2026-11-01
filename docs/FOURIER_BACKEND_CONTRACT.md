@@ -142,6 +142,18 @@ axes and odd Nyquist axes need no transforms after validation. Ordinary
 Laplacian inputs retain the exact serial transform/multiplier operation order;
 conservative exponent headroom checks select normalization otherwise.
 
+Before a directional cold FFT, a certified preparation can subtract each
+axis-line's first value. The removed field is constant in the differentiated
+axis, so centered derivative, Nyquist projector and derivative-Laplacian
+annihilate it. The full Laplacian does not use this preparation. Exact binary
+operand scaling and a zero error-free subtraction residual are required in
+nearest/gradual Float32/64 arithmetic; otherwise the original preparation runs.
+Huge axis-constant lines become exact zero before scaling. The physical result
+still uses the same returned scale/exponent and borrowed scratch lifetime.
+See [axis conditioning and pending validation](SCALED_AXIS_CONDITIONING_PLAN.md).
+This removes an unrelated axis-null background, not arbitrary active-mode FFT
+conditioning or cancellation error.
+
 Normalized scalar multiplier error is bounded at its positive operation scale
 by `gamma_(D+3)*sum(abs(exact terms))`, plus at most half a least-subnormal unit
 per shifted axis term. This is distinct from FFTW error and cancellation in the

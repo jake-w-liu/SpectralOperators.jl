@@ -50,6 +50,10 @@ function _prepare_scaled_input!(g::FourierGrid{D,T}, f, magnitude) where {D,T}
     safe = _fft_safe_magnitude(T, length(f), one(T))
     input_scale = _fft_input_scale(magnitude, safe)
     _copy_fft_input!(g.cbuf, f, input_scale)
+    return input_scale, _normalize_prepared_scaled_input!(g)
+end
+
+function _normalize_prepared_scaled_input!(g::FourierGrid{D,T}) where {D,T}
     prepared_magnitude = zero(T)
     for value in g.cbuf
         prepared_magnitude = max(prepared_magnitude, abs(real(value)))
@@ -61,7 +65,70 @@ function _prepare_scaled_input!(g::FourierGrid{D,T}, f, magnitude) where {D,T}
             g.cbuf[I] = ldexp(real(g.cbuf[I]), -input_exponent)
         end
     end
-    return input_scale, input_exponent
+    return input_exponent
+end
+
+@inline _scaled_axis_reference(I::CartesianIndex{D}, axis) where {D} =
+    CartesianIndex(ntuple(d -> d == axis ? 1 : I[d], Val(D)))
+
+# Axis-constant lines are null for each directional multiplier. Do not let
+# their unrelated magnitude force downscaling of the active lines.
+function _axis_active_input_magnitude(f::AbstractArray{T,D}, axis) where {T,D}
+    magnitude = zero(T)
+    @inbounds for I in CartesianIndices(f)
+        value = f[I]
+        reference = f[_scaled_axis_reference(I, axis)]
+        value == reference && continue
+        magnitude = max(magnitude, abs(value), abs(reference))
+    end
+    return magnitude
+end
+
+# TwoSum(a,-b), Algorithm 3.1 of Ogita/Rump/Oishi (2005). With the caller's
+# nearest/gradual mode and headroom, a zero residual certifies exact subtraction.
+@inline function _axis_difference(a, b)
+    difference = a - b
+    virtual = difference - a
+    residual = (a - (difference - virtual)) + (-b - virtual)
+    return difference, iszero(residual)
+end
+
+function _copy_axis_difference!(g::FourierGrid{D,T}, f, axis, shift) where {D,T}
+    @inbounds for I in CartesianIndices(f)
+        value = f[I]
+        reference = f[_scaled_axis_reference(I, axis)]
+        if value == reference
+            g.cbuf[I] = zero(T)
+            continue
+        end
+        a, b = ldexp(value, -shift), ldexp(reference, -shift)
+        # Upscaling an IEEE value is exact when finite. A matching round trip
+        # therefore certifies that no stored input bit was lost by downscaling.
+        isequal(ldexp(a, shift), value) && isequal(ldexp(b, shift), reference) || return false
+        difference, exact = _axis_difference(a, b)
+        exact || return false
+        g.cbuf[I] = difference
+    end
+    return true
+end
+
+function _prepare_normalized_input!(g::FourierGrid{D,T}, f, magnitude, axis, ::Val{K}) where {D,T,K}
+    directional = K === :derivative || K === :nyquist || K === :derivative_laplacian
+    if !directional || !(T <: Union{Float32,Float64}) ||
+       rounding(T) !== RoundNearest || get_zero_subnormals()
+        return _prepare_scaled_input!(g, f, magnitude)
+    end
+    active = _axis_active_input_magnitude(f, axis)
+    safe = _fft_safe_magnitude(T, length(f), one(T))
+    # With this shift, each operand is below 2^(exponent(safe)-1), and a
+    # difference is below 2^exponent(safe) <= safe. No subtraction can overflow.
+    shift = iszero(active) ? 0 : max(0, exponent(active) - exponent(safe) + 2)
+    if _copy_axis_difference!(g, f, axis, shift)
+        return one(T), shift + _normalize_prepared_scaled_input!(g)
+    end
+    # An inexact difference or input scaling is not admitted. Restore the
+    # original preparation path over the whole scratch, including its errors.
+    return _prepare_scaled_input!(g, f, magnitude)
 end
 
 @inline function _scaled_axis(g::FourierGrid{D}, axis::Integer) where {D}
@@ -208,7 +275,7 @@ function _apply_normalized_multiplier!(g, axis, kind::Val{K}) where {K}
 end
 
 function _normalized_scaled_data!(g, f, magnitude, axis, kind)
-    input_scale, input_exponent = _prepare_scaled_input!(g, f, magnitude)
+    input_scale, input_exponent = _prepare_normalized_input!(g, f, magnitude, axis, kind)
     g.plan * g.cbuf
     power = _apply_normalized_multiplier!(g, axis, kind)
     g.iplan * g.cbuf

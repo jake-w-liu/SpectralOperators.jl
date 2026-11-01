@@ -23,3 +23,32 @@ jobs:
       - uses: julia-actions/cache@v2
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
+
+  format:
+    name: Formatting check (JuliaFormatter)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.12'
+      - uses: julia-actions/cache@v2
+      - name: Check formatting
+        run: |
+          julia -e '
+            using Pkg
+            Pkg.add(PackageSpec(name = "JuliaFormatter", version = "1"))
+            using JuliaFormatter
+            if !format(".")
+                error("SpectralOperators is not formatted; apply the uploaded formatter patch")
+            end'
+      - name: Capture formatting changes
+        if: failure()
+        run: git diff --output=formatter.patch
+      - name: Upload formatting changes
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: formatter-patch-${{ github.sha }}
+          path: formatter.patch
+          if-no-files-found: warn

@@ -11,6 +11,7 @@ using SpectralOperators
     include("test_scaled_sources.jl")
     include("test_scaled_floor.jl")
     include("test_scaled_zero.jl")
+    include("test_scaled_axis_conditioning.jl")
     @testset "Aqua package quality" begin
         Aqua.test_all(SpectralOperators)
     end
