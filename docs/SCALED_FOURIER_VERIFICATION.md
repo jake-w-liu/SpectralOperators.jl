@@ -1,5 +1,31 @@
 # Scaled Fourier verification and release record
 
+## Version 0.1.8
+
+Verified on 2026-11-01. Version 0.1.8 is registered, annotated-tagged and
+[released](https://github.com/jake-w-liu/SpectralOperators.jl/releases/tag/v0.1.8)
+from exact commit `1c3d0cc67278364cfe899bc20a4079bbd8f5a57e`, tree
+`f768bbfa33c6b9e4eec6f03d3098b35be5c86928`. The
+[General request](https://github.com/JuliaRegistries/General/pull/174315) merged
+at 2026-11-01 06:11:03 UTC, and General's published version record contains that
+tree. The remote annotated tag dereferences to the tested commit; the public
+release's target and complete notes were read back.
+
+All five jobs pass in the
+[exact-revision CI run](https://github.com/jake-w-liu/SpectralOperators.jl/actions/runs/41276540274).
+Each Linux/macOS package and Aqua job records 26,986 passing assertions on actual
+Julia 1.12.7 or 1.13.3. The fifth job passes JuliaFormatter 2.14.0 on Julia 1.12.7.
+General's registry checker also installs and imports 0.1.8 on both Julia versions.
+The [axis-conditioning record](SCALED_AXIS_CONDITIONING_PLAN.md) owns the bounded
+change and remaining gates. Complete compiler impact, comparative costs, broader
+hardware contexts and HPIC consumer acceptance are separate; the historical
+0.1.7 results below do not certify them for 0.1.8.
+
+Full raw CI and publication receipts are retained under
+`HybridPlasmaPIC-audit-evidence/2026-11-01/so-axis-conditioning/release-018-41276540274/`.
+
+## Version 0.1.7 historical record
+
 Sealed record, 2026-10-29. SpectralOperators 0.1.7 is registered, tagged and
 released from commit `600cd262dd1d5fa71b378448713ab2f50c404bb3`, tree
 `9074d7ef57054e4772f45134125eb4ec7125ef79`. Its 20 non-Markdown files preserve
@@ -24,6 +50,7 @@ This page records checked releases and tests; it does not maintain a live queue.
 | [0.1.5](https://github.com/jake-w-liu/SpectralOperators.jl/releases/tag/v0.1.5) | Full-operation inverse-FFT headroom |
 | [0.1.6](https://github.com/jake-w-liu/SpectralOperators.jl/releases/tag/v0.1.6) | Full-Laplacian Nyquist energy channel |
 | [0.1.7](https://github.com/jake-w-liu/SpectralOperators.jl/releases/tag/v0.1.7) | Borrowed normalized source channels and canonical floor, zero-buffer and Cartesian store repairs |
+| [0.1.8](https://github.com/jake-w-liu/SpectralOperators.jl/releases/tag/v0.1.8) | Certified directional axis-null source conditioning before the FFT |
 
 The 0.1.7 [General request](https://github.com/JuliaRegistries/General/pull/173877)
 merged on 2026-10-28 UTC. The annotated tag dereferences to the registered commit;

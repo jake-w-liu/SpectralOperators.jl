@@ -150,7 +150,7 @@ operand scaling and a zero error-free subtraction residual are required in
 nearest/gradual Float32/64 arithmetic; otherwise the original preparation runs.
 Huge axis-constant lines become exact zero before scaling. The physical result
 still uses the same returned scale/exponent and borrowed scratch lifetime.
-See [axis conditioning and pending validation](SCALED_AXIS_CONDITIONING_PLAN.md).
+See [axis conditioning and verification](SCALED_AXIS_CONDITIONING_PLAN.md).
 This removes an unrelated axis-null background, not arbitrary active-mode FFT
 conditioning or cancellation error.
 

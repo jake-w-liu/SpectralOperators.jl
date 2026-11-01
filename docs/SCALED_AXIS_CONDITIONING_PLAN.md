@@ -1,19 +1,26 @@
 # Directional scaled-source axis conditioning
 
-Version 0.1.8 candidate, 2026-11-01. Source and numerical design review are complete.
-The initial candidate passed all four minimum/latest Julia package/Aqua jobs on
-Linux and macOS. Formatting and final-revision acceptance remain pending. The
-[registered 0.1.7 verification](SCALED_FOURIER_VERIFICATION.md) is historical
-baseline evidence and does not certify this update.
+Version 0.1.8 package verification, 2026-11-01. All five jobs pass in the
+[exact-revision CI run](https://github.com/jake-w-liu/SpectralOperators.jl/actions/runs/41276540274)
+at commit `1c3d0cc67278364cfe899bc20a4079bbd8f5a57e`, tree
+`f768bbfa33c6b9e4eec6f03d3098b35be5c86928`. Each Linux/macOS package and Aqua job
+records 26,986 passing assertions on actual Julia 1.12.7 or 1.13.3. The fifth
+job passes JuliaFormatter 2.14.0 on Julia 1.12.7. The
+[General registration](https://github.com/JuliaRegistries/General/pull/174315)
+merged on 2026-11-01 UTC. The annotated tag and
+[public release](https://github.com/jake-w-liu/SpectralOperators.jl/releases/tag/v0.1.8)
+point to that exact tested commit and registered tree. The
+[release record](SCALED_FOURIER_VERIFICATION.md) separates historical checks from
+this update's acceptance and remaining limits.
 
 ## Source boundary
 
 The cold normalized pipeline originally transformed the whole input before
 applying its directional multiplier. A large background constant along the
 consumed axis can therefore mix with a much smaller active source first.
-The new small D2 tests place a tiny varying slice beneath a normal transverse
-background and swap the consumed axis. They use independent four-point exact
-matrices; execution will establish actual runtime behavior.
+The small D2 tests place a tiny varying slice beneath a normal transverse
+background and swap the consumed axis. Their independent four-point exact
+matrix comparisons pass in all four package jobs above.
 
 ## Bounded canonical change
 
@@ -54,11 +61,14 @@ odd Nyquist axes retain their existing early-return validation.
 - [x] Select JuliaFormatter 2.14.0, whose [upstream regression](https://github.com/JuliaEditorSupport/JuliaFormatter.jl/blob/v2.14.0/test/default_style.jl#L4984) covers Julia's
   `public` declarations. The initial v1 artifact joined these keywords to names;
   that patch was retained as evidence and was not applied.
-- [x] Review and apply the v2 runner's formatting artifact. The module's `public`
-  declarations remain byte-identical; final-revision CI is still required.
-- [ ] Pass minimum/latest Julia package/Aqua and consumer checks on GitHub.
-- [ ] Check formatting and complete compiler impact; measure public costs before
-  making allocation or performance claims.
+- [x] Review and apply the v2 runner's formatting artifact, retaining the module's
+  `public` declarations byte-for-byte.
+- [x] Pass all four minimum/latest Linux/macOS package/Aqua jobs at the tested
+  revision, plus its GitHub formatting job.
+- [x] Verify General publication and the exact tested tag/release tree.
+- [ ] Verify downstream consumer composition on GitHub.
+- [ ] Check complete compiler impact and measure public costs before making new
+  allocation or performance claims.
 
 A certified null subtraction is not an exact-FFT theorem. Broad dynamic range
 among genuinely active modes, arbitrary cancellation, non-admitted conditioning

@@ -190,10 +190,10 @@ its final normalization. It rescales extreme finite inputs and rejects a scale
 that would erase a nonzero input. The [inverse-range repair record](docs/INVERSE_FFT_HEADROOM_REPAIR.md)
 contains the independent finite-output convolution test and scope limits.
 
-The directional borrowed scaled-data operators have a prepared
-[axis-conditioning update](docs/SCALED_AXIS_CONDITIONING_PLAN.md) that removes
-certified axis-null backgrounds before the FFT. Its GitHub validation is pending;
-the sealed 0.1.7 release results do not cover this update.
+Directional borrowed scaled-data operators remove certified axis-null backgrounds
+before the FFT. The [axis-conditioning record](docs/SCALED_AXIS_CONDITIONING_PLAN.md)
+documents the exact-subtraction conditions, checked package gates and remaining
+downstream and performance limits.
 
 `nyquist_channel!(out, f, g, d)` supplies the real `k_N P_N f` channel
 that completes the positive quadratic form of the full Laplacian alongside
