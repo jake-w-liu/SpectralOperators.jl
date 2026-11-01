@@ -34,6 +34,7 @@ function exp_filter!(
     p >= 1 || throw(ArgumentError("p must be ≥ 1"))
     α >= 0 || throw(ArgumentError("α must be ≥ 0"))
     αT = T(α)
+    _require_real_fft_storage((field,), (field,), (g.cbuf,), g)
     input_scale = _prepare_fft_input!(g.cbuf, field)
     g.plan * g.cbuf
     _apply_exp_filter_multiplier!(g.cbuf, g.midx, g.n, αT, p)
@@ -53,6 +54,7 @@ preserved. Returns `field`.
 """
 function dealias_two_thirds!(field::AbstractArray{T,D}, g::FourierGrid{D,T}) where {T,D}
     _require_grid_array(:field, field, g)
+    _require_real_fft_storage((field,), (field,), (g.cbuf,), g)
     input_scale = _prepare_fft_input!(g.cbuf, field)
     g.plan * g.cbuf
     _apply_two_thirds_mask!(g.cbuf, g.midx, g.n)

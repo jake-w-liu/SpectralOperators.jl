@@ -15,6 +15,42 @@ per-axis metadata. `midx` uses positive even-grid Nyquist; `kfull` retains it;
 `ik` and `kvec` zero it for odd derivatives and projection. It allocates only the
 metadata, not plans or field storage. Treat these vectors as read-only.
 
+## Serial real-field storage
+
+The serial `FourierGrid` operators accept real fields with the grid's type,
+shape and one-based axes. Inputs and outputs must not overlap the internal
+complex buffers that the complete operation mutates, including through ordinary
+real reinterpretations or views. Writable outputs must not overlap any axis of
+read-only `midx`, `kfull`, `ik` or `kvec` metadata. A shared entry preflight rejects
+these conflicts with `ArgumentError` before scratch, FFT or output writes. Array
+adapters must report aliases truthfully through `Base.dataids`/`Base.mightalias`.
+
+| Operator | Mutated scratch |
+| --- | --- |
+| `deriv!`, `gradient!` | `cbuf`, `tbuf` |
+| `laplacian!`, `exp_filter!`, `dealias_two_thirds!` | `cbuf` |
+| `nyquist_channel!` | `cbuf` on an even axis; none on an odd axis |
+| `divergence!` | `cbuf`, `abuf`; only the first `D` input components participate |
+| `curl!` | D1: `cbuf`, `abuf`; D2: also `tbuf`; D3: also `sbuf` |
+| `project_divfree!` | First `D` of `cbuf`, `tbuf`, `abuf` |
+
+Projection protects all three field components from scratch writes, including
+absent-axis components that must remain unchanged. Only its first `D` components
+are writable outputs for the metadata rule. Odd-axis Nyquist uses no scratch but
+still rejects a metadata output. Inputs may alias read-only metadata; real fields
+may alias scratch not mutated by the operation. These checks assume the grid
+constructor's internally disjoint storage; they do not validate manually assembled
+overlapping grids. Each concurrent caller needs its own grid.
+
+Existing user-field sharing rules remain: scalar input/output overlap is allowed;
+`gradient!` outputs are pairwise disjoint but one may overlap its input;
+`divergence!` permits input/output and inter-input sharing; filters are in place.
+`curl!` outputs remain pairwise disjoint and disjoint from all inputs;
+`project_divfree!` components remain pairwise disjoint. The qualified complex
+kernels and borrowed operations below retain their separate contracts. This
+storage preflight is a source candidate; remote numerical, allocation and package
+gates remain pending.
+
 ## Mode kernels
 
 For `T = Float32` or `Float64`, fields have type `AbstractArray{Complex{T},D}`.

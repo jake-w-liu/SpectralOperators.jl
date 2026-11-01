@@ -87,6 +87,14 @@ longitudinal amplitude from transverse headroom; active rescaling loss still
 rejects. Inputs whose selected scale changes can round differently. This bounded
 selector change is source implemented; exact-revision remote verification is pending.
 
+Serial Fourier operations reject real input/output storage overlapping the scratch
+they mutate, and reject writable outputs overlapping read-only grid metadata.
+Aliases with unused scratch and read-only metadata inputs remain allowed; scalar
+input/output sharing, supported vector sharing and in-place filters remain valid.
+These checks run before scratch or output writes. See the
+[storage contract](docs/FOURIER_BACKEND_CONTRACT.md#serial-real-field-storage).
+This storage repair is source implemented; exact-revision remote checks are pending.
+
 ## Divergence-Free Projection
 
 ```julia

@@ -126,6 +126,7 @@ function deriv!(
     1 <= j <= D || throw(ArgumentError("axis $j out of range 1:$D"))
     _require_grid_array(:input, f, g)
     _require_grid_array(:output, out, g)
+    _require_real_fft_storage((f,), (out,), (g.cbuf, g.tbuf), g)
     gain = maximum(abs, g.kvec[j])
     input_scale = _prepare_fft_input!(g.cbuf, f, gain)
     g.plan * g.cbuf
@@ -160,6 +161,7 @@ function nyquist_channel!(
     1 <= j <= D || throw(ArgumentError("axis $j out of range 1:$D"))
     _require_grid_array(:input, f, g)
     _require_grid_array(:output, out, g)
+    _require_real_fft_storage((f,), (out,), isodd(g.n[j]) ? () : (g.cbuf,), g)
     if isodd(g.n[j])
         all(isfinite, f) || throw(ArgumentError("spectral operator input values must be finite"))
         return fill!(out, zero(T))
@@ -194,6 +196,7 @@ function gradient!(
         Base.mightalias(out[j], out[k]) &&
             throw(ArgumentError("gradient! output components must not alias each other"))
     end
+    _require_real_fft_storage((f,), out, (g.cbuf, g.tbuf), g)
     gain = maximum(d -> maximum(abs, g.kvec[d]), 1:D)
     input_scale = _prepare_fft_input!(g.cbuf, f, gain)
     g.plan * g.cbuf                      # cbuf = f̂, reused for every axis
@@ -217,6 +220,7 @@ function divergence!(out::AbstractArray{T,D}, v, g::FourierGrid{D,T}) where {D,T
     for j = 1:D
         _require_grid_array(:input, j, v[j], g)
     end
+    _require_real_fft_storage(ntuple(j -> v[j], D), (out,), (g.cbuf, g.abuf), g)
     gain = sum(d -> maximum(abs, g.kvec[d]), 1:D)
     isfinite(gain) ||
         throw(ArgumentError("divergence spectral multiplier bound is not representable as $T"))
@@ -257,6 +261,14 @@ function curl!(
         Base.mightalias(out[c], A[d]) &&
             throw(ArgumentError("curl! output components must not alias input components"))
     end
+    scratch = if D == 1
+        (g.cbuf, g.abuf)
+    elseif D == 2
+        (g.cbuf, g.tbuf, g.abuf)
+    else
+        (g.cbuf, g.tbuf, g.abuf, g.sbuf)
+    end
+    _require_real_fft_storage(A, out, scratch, g)
     gain = sum(d -> maximum(abs, g.kvec[d]), 1:D)
     isfinite(gain) ||
         throw(ArgumentError("curl spectral multiplier bound is not representable as $T"))
@@ -357,6 +369,7 @@ largest squared grid wavenumber would overflow the grid element type.
 function laplacian!(out::AbstractArray{T,D}, f::AbstractArray{T,D}, g::FourierGrid{D,T}) where {D,T}
     _require_grid_array(:input, f, g)
     _require_grid_array(:output, out, g)
+    _require_real_fft_storage((f,), (out,), (g.cbuf,), g)
     gain = _laplacian_gain(g.kfull)
     input_scale = _prepare_fft_input!(g.cbuf, f, gain)
     g.plan * g.cbuf

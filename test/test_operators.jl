@@ -640,6 +640,148 @@ end
     @test maximum(abs, f) < 10eps(T)
 end
 
+@testset "serial FFT storage roles reject before mutation" begin
+    reject_unchanged = function (call, fields, g)
+        storage = (
+            fields...,
+            g.cbuf,
+            g.tbuf,
+            g.abuf,
+            g.sbuf,
+            g.midx...,
+            g.kfull...,
+            g.ik...,
+            g.kvec...,
+        )
+        before = copy.(storage)
+        @test_throws ArgumentError call()
+        @test isequal(storage, before)
+    end
+    for T in (Float32, Float64)
+        for D = 1:3
+            g = FourierGrid(ntuple(_ -> 4, D), ntuple(_ -> T(2π), D))
+            realview = buffer ->
+                reshape(view(reinterpret(T, vec(buffer)), 1:length(g.cbuf)), g.n)
+            f, out = ones(T, g.n), zeros(T, g.n)
+            grad = ntuple(_ -> zeros(T, g.n), D)
+            A = ntuple(_ -> ones(T, g.n), 3)
+            B = ntuple(_ -> zeros(T, g.n), 3)
+            for buffer in (g.cbuf, g.tbuf)
+                bad = realview(buffer)
+                reject_unchanged(() -> deriv!(out, bad, g, 1), (out, bad), g)
+                reject_unchanged(() -> deriv!(bad, f, g, 1), (bad, f), g)
+                reject_unchanged(() -> gradient!(grad, bad, g), (grad..., bad), g)
+                early = ntuple(j -> j == 1 ? bad : grad[j], D)
+                reject_unchanged(() -> gradient!(early, f, g), (early..., f), g)
+            end
+            for buffer in (g.cbuf, g.abuf)
+                bad = realview(buffer)
+                pending = ntuple(j -> j == D ? bad : f, D)
+                reject_unchanged(() -> divergence!(out, pending, g), (out, pending...), g)
+                reject_unchanged(() -> divergence!(bad, ntuple(_ -> f, D), g), (bad, f), g)
+            end
+            scratch = if D == 1
+                (g.cbuf, g.abuf)
+            elseif D == 2
+                (g.cbuf, g.tbuf, g.abuf)
+            else
+                (g.cbuf, g.tbuf, g.abuf, g.sbuf)
+            end
+            for buffer in scratch
+                bad = realview(buffer)
+                pending = (A[1], A[2], bad)
+                reject_unchanged(() -> curl!(B, pending, g), (B..., pending...), g)
+                if D == 1
+                    inactive = (bad, A[2], A[3])
+                    reject_unchanged(() -> curl!(B, inactive, g), (B..., inactive...), g)
+                end
+                early = (bad, B[2], B[3])
+                reject_unchanged(() -> curl!(early, A, g), (early..., A...), g)
+            end
+            for buffer in ntuple(j -> (g.cbuf, g.tbuf, g.abuf)[j], D)
+                # Component 3 is unchanged in D1/2, but must survive scratch writes.
+                field = (copy(f), copy(f), realview(buffer))
+                reject_unchanged(() -> project_divfree!(field, g), field, g)
+            end
+        end
+        g = FourierGrid((4,), (T(2π),))
+        realview = buffer -> view(reinterpret(T, buffer), 1:4)
+        bad, f, out = realview(g.cbuf), ones(T, 4), zeros(T, 4)
+        reject_unchanged(() -> laplacian!(out, bad, g), (out, bad), g)
+        reject_unchanged(() -> laplacian!(bad, f, g), (bad, f), g)
+        reject_unchanged(() -> nyquist_channel!(out, bad, g, 1), (out, bad), g)
+        reject_unchanged(() -> nyquist_channel!(bad, f, g, 1), (bad, f), g)
+        reject_unchanged(() -> exp_filter!(bad, g), (bad,), g)
+        reject_unchanged(() -> dealias_two_thirds!(bad, g), (bad,), g)
+        for metadata in (g.midx, g.kfull, g.ik, g.kvec)
+            badout = realview(metadata[1])
+            reject_unchanged(() -> laplacian!(badout, f, g), (badout, f), g)
+        end
+        odd = FourierGrid((5,), (T(2π),))
+        oddout = odd.kfull[1]
+        reject_unchanged(() -> nyquist_channel!(oddout, ones(T, 5), odd, 1), (oddout,), odd)
+    end
+end
+
+@testset "serial FFT storage roles preserve supported sharing" begin
+    for T in (Float32, Float64)
+        g = FourierGrid((4,), (T(2π),))
+        wave, slope = T[0, 1, 0, -1], T[1, 0, -1, 0]
+        # Partial scalar input/output overlap is safe after the input copy.
+        backing = vcat(wave, zero(T))
+        input, output = view(backing, 1:4), view(backing, 2:5)
+        deriv!(output, input, g, 1)
+        @test output ≈ slope rtol = 64eps(T) atol = 64eps(T)
+        same = copy(wave)
+        laplacian!(same, same, g)
+        @test same ≈ -wave rtol = 64eps(T) atol = 64eps(T)
+        nyquist = T[1, -1, 1, -1]
+        nyquist_channel!(nyquist, nyquist, g, 1)
+        @test nyquist ≈ T(2) .* T[1, -1, 1, -1] rtol = 64eps(T)
+        # Neither of these buffers is mutated by deriv!.
+        unused_input = view(reinterpret(T, g.abuf), 1:4)
+        unused_output = view(reinterpret(T, g.sbuf), 1:4)
+        unused_input .= wave
+        deriv!(unused_output, unused_input, g, 1)
+        @test unused_output ≈ slope rtol = 64eps(T) atol = 64eps(T)
+        transverse = view(reinterpret(T, g.tbuf), 1:4)
+        transverse .= wave
+        curled = (unused_output, zeros(T, 4), zeros(T, 4))
+        curl!(curled, (ones(T, 4), transverse, zeros(T, 4)), g)
+        @test all(iszero, curled[1]) && all(iszero, curled[2])
+        @test curled[3] ≈ slope rtol = 64eps(T) atol = 64eps(T)
+        # Readonly metadata inputs and unused divergence extras are permitted.
+        metadata_before = copy(g.kfull[1])
+        expected = deriv(copy(metadata_before), g, 1)
+        deriv!(output, g.kfull[1], g, 1)
+        @test output == expected && g.kfull[1] == metadata_before
+        divergence!(output, (wave, view(reinterpret(T, g.cbuf), 1:4)), g)
+        @test output ≈ slope rtol = 64eps(T) atol = 64eps(T)
+        absent = (copy(wave), g.kfull[1], unused_input)
+        absent_before = (copy(absent[2]), copy(absent[3]))
+        project_divfree!(absent, g)
+        @test (absent[2], absent[3]) == absent_before
+        odd = FourierGrid((5,), (T(2π),))
+        oddfield = view(reinterpret(T, odd.cbuf), 1:5)
+        oddfield .= one(T)
+        nyquist_channel!(oddfield, oddfield, odd, 1)
+        @test all(iszero, oddfield)
+        g2 = FourierGrid((4, 4), (T(2π), T(2π)))
+        field = repeat(reshape(wave, 4, 1), 1, 4)
+        expected2 = repeat(reshape(slope, 4, 1), 1, 4)
+        grad = (field, zeros(T, 4, 4))
+        gradient!(grad, field, g2)
+        @test grad[1] ≈ expected2 rtol = 64eps(T) atol = 64eps(T)
+        @test all(iszero, grad[2])
+        field .= repeat(reshape(wave, 4, 1), 1, 4)
+        divergence!(field, (field, field), g2)
+        @test field ≈ expected2 rtol = 64eps(T) atol = 64eps(T)
+        exp_filter!(field, g2)
+        dealias_two_thirds!(field, g2)
+        @test all(isfinite, field)
+    end
+end
+
 @testset "operators allocate nothing in steady state" begin
     T = Float64
     n = (16, 16, 16)

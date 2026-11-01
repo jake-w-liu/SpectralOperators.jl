@@ -175,6 +175,25 @@ end
     return nothing
 end
 
+# Real fields may share user storage, but must remain live across every scratch
+# write in the complete operation. Only actual outputs may not alias metadata.
+@inline function _require_real_fft_storage(
+    inputs::Tuple,
+    outputs::Tuple,
+    scratch::Tuple,
+    g::FourierGrid,
+)
+    for fields in (inputs, outputs), field in fields, buffer in scratch
+        Base.mightalias(field, buffer) &&
+            throw(ArgumentError("spectral operator fields must not alias mutated FFT scratch"))
+    end
+    for out in outputs, metadata in (g.midx, g.kfull, g.ik, g.kvec), axis in metadata
+        Base.mightalias(out, axis) &&
+            throw(ArgumentError("spectral operator outputs must not alias Fourier metadata"))
+    end
+    return nothing
+end
+
 # FFTW's forward transform is unnormalised.  A finite field can therefore
 # overflow during a butterfly even when the requested real-space result is
 # finite (the derivative of a huge constant is the simplest example).  Scale

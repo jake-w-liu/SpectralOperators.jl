@@ -18,6 +18,12 @@ function project_divfree!(B::Tuple{Vararg{AbstractArray{T,D},3}}, g::FourierGrid
         Base.mightalias(B[c], B[d]) &&
             throw(ArgumentError("project_divfree! components must not alias each other"))
     end
+    _require_real_fft_storage(
+        B,
+        ntuple(c -> B[c], D),
+        ntuple(c -> (g.cbuf, g.tbuf, g.abuf)[c], D),
+        g,
+    )
     input_scale = _fft_input_scale(B, D, g)
     Bx = g.cbuf
     By = g.tbuf

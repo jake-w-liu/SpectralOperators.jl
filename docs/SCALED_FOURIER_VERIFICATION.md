@@ -6,21 +6,31 @@ Updated 2026-11-01. The unreleased source version is 0.1.9; the latest registere
 release remains 0.1.8. D1 `curl!` now selects shared FFT headroom from the two
 components it differentiates. All three components retain finite/type/shape/alias
 validation; active rescaling loss still rejects. Changed scale selection can
-change rounded outputs. D2/3, shared backend primitives and transform order remain.
+change rounded outputs. D2/3 numerical formulas, shared backend primitives and
+transform order remain. Serial real-field operators also now share a role-aware
+storage preflight: participating inputs and outputs must not overlap scratch the
+operation mutates; actual writable outputs must not overlap read-only metadata.
+Supported user-field sharing, unused scratch and read-only metadata inputs remain
+allowed. The [backend contract](FOURIER_BACKEND_CONTRACT.md#serial-real-field-storage)
+owns the per-operation roles.
 
 | Stage | Status |
 | --- | --- |
 | Canonical D1 selector and current contract | Source implemented; root source/caller review complete |
-| Essential operator and allocation controls | Added to the existing test file; unrun locally |
-| Source preservation | Root reproduced 28 checks; old numerical bodies and assertions retained |
+| Canonical serial storage preflight | Source implemented at all nine boundaries; runtime pending |
+| Essential operator, alias and allocation controls | Added to the existing test file; unrun locally |
+| D1 selector source preservation | Root reproduced 28 checks; old numerical bodies and assertions retained |
+| Storage source preservation | Root and independent reviewer reproduced 31 source-text checks; numerical bodies and old assertions retained |
 | Minimum/latest Julia on Ubuntu/macOS, Aqua and formatter | Exact-revision GitHub acceptance pending |
 | Registration, tag and release | Pending tested exact source; no 0.1.9 publication yet |
 | HPIC consumer accuracy/compiler/cost | Pending; strict pressure/Faraday assertions remain |
 
 All Julia execution runs on GitHub or suitable remote hardware. Source review
 establishes the bounded ownership change, not a numerical result, measured speed
-or cause of the historical HPIC pressure/Faraday failures. A separate scratch-alias
-source audit is still open. The verified 0.1.8 history below remains unchanged.
+or cause of the historical HPIC pressure/Faraday failures. The scratch-alias audit
+verified the missing entry ownership and subsequent write conflicts from source;
+its predicted returned FFT values remain unexecuted. The guard candidate needs
+exact-revision remote checks. The verified 0.1.8 history below remains unchanged.
 
 ## Version 0.1.8
 
