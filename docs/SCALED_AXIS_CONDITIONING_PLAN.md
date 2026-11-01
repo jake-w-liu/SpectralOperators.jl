@@ -1,7 +1,8 @@
 # Directional scaled-source axis conditioning
 
-Version 0.1.8 candidate, 2026-11-01. Source and numerical design review are complete;
-all Julia, formatter and runtime acceptance remain pending on GitHub. The
+Version 0.1.8 candidate, 2026-11-01. Source and numerical design review are complete.
+The initial candidate passed all four minimum/latest Julia package/Aqua jobs on
+Linux and macOS. Formatting and final-revision acceptance remain pending. The
 [registered 0.1.7 verification](SCALED_FOURIER_VERIFICATION.md) is historical
 baseline evidence and does not certify this update.
 
@@ -50,6 +51,9 @@ odd Nyquist axes retain their existing early-return validation.
 - [x] Implement one shared directional preparation and retain Laplacian behavior.
 - [x] Include essential axis swaps, constants, exact-factor/range and alias controls.
 - [x] Add a GitHub formatter check with a downloadable patch on failure.
+- [x] Select JuliaFormatter 2.14.0, whose [upstream regression](https://github.com/JuliaEditorSupport/JuliaFormatter.jl/blob/v2.14.0/test/default_style.jl#L4984) covers Julia's
+  `public` declarations. The initial v1 artifact joined these keywords to names;
+  that patch was retained as evidence and was not applied.
 - [ ] Pass minimum/latest Julia package/Aqua and consumer checks on GitHub.
 - [ ] Check formatting and complete compiler impact; measure public costs before
   making allocation or performance claims.

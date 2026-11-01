@@ -37,7 +37,7 @@ jobs:
         run: |
           julia -e '
             using Pkg
-            Pkg.add(PackageSpec(name = "JuliaFormatter", version = "1"))
+            Pkg.add(PackageSpec(name = "JuliaFormatter", version = "2.14.0"))
             using JuliaFormatter
             if !format(".")
                 error("SpectralOperators is not formatted; apply the uploaded formatter patch")
