@@ -85,8 +85,14 @@ magnitudes globally, agree a common scale, and agree any lost-nonzero error befo
 entering another transpose. Those collectives and transactional output publication
 belong to the transport implementation. This package has no MPI dependency.
 
-The serial `FourierGrid` layout and operation order remain unchanged. Its scratch
-buffers still belong to one caller at a time; this API does not make shared
+The serial `FourierGrid` layout and transform/multiplier order remain unchanged.
+D1 serial `curl!` chooses its common input scale from active components `A[2]`
+and `A[3]`; unused `A[1]` retains finite/type/shape/alias validation. D2/3 retain
+all-component scaling. The scalar/backend primitives above are unchanged, and
+active copy loss still rejects. A changed D1 scale may change rounded output;
+this does not establish exact FFT results or cross-version trajectory identity.
+The selector's source implementation still needs exact-revision remote gates.
+Scratch buffers still belong to one caller at a time; this API does not make shared
 workspaces thread-safe. The extraction does not promise GPU kernels or distributed
 solver/checkpoint support.
 

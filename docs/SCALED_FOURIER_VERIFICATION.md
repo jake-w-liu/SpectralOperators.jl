@@ -1,5 +1,27 @@
 # Scaled Fourier verification and release record
 
+## Version 0.1.9 source candidate
+
+Updated 2026-11-01. The unreleased source version is 0.1.9; the latest registered
+release remains 0.1.8. D1 `curl!` now selects shared FFT headroom from the two
+components it differentiates. All three components retain finite/type/shape/alias
+validation; active rescaling loss still rejects. Changed scale selection can
+change rounded outputs. D2/3, shared backend primitives and transform order remain.
+
+| Stage | Status |
+| --- | --- |
+| Canonical D1 selector and current contract | Source implemented; root source/caller review complete |
+| Essential operator and allocation controls | Added to the existing test file; unrun locally |
+| Source preservation | Root reproduced 28 checks; old numerical bodies and assertions retained |
+| Minimum/latest Julia on Ubuntu/macOS, Aqua and formatter | Exact-revision GitHub acceptance pending |
+| Registration, tag and release | Pending tested exact source; no 0.1.9 publication yet |
+| HPIC consumer accuracy/compiler/cost | Pending; strict pressure/Faraday assertions remain |
+
+All Julia execution runs on GitHub or suitable remote hardware. Source review
+establishes the bounded ownership change, not a numerical result, measured speed
+or cause of the historical HPIC pressure/Faraday failures. A separate scratch-alias
+source audit is still open. The verified 0.1.8 history below remains unchanged.
+
 ## Version 0.1.8
 
 Verified on 2026-11-01. Version 0.1.8 is registered, annotated-tagged and

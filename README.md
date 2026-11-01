@@ -80,7 +80,12 @@ divergence!(divB, B, g)
 
 `curl!` requires output component arrays that do not alias each other or the
 input component arrays. This avoids silent overwrite of components that are
-still needed for later curl components.
+still needed for later curl components. In 1D it differentiates only `A[2]`
+and `A[3]`, so those two components choose the common FFT input scale. `A[1]`
+still passes all finite/type/shape/alias checks. This removes irrelevant
+longitudinal amplitude from transverse headroom; active rescaling loss still
+rejects. Inputs whose selected scale changes can round differently. This bounded
+selector change is source implemented; exact-revision remote verification is pending.
 
 ## Divergence-Free Projection
 

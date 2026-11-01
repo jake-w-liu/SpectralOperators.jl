@@ -235,7 +235,9 @@ end
 
 Curl of a 3-component vector field `A` whose components vary over the `D`
 spatial axes (derivatives along absent axes are zero — the standard reduced curl
-for 1D/2D). `out` must be distinct from `A`.
+for 1D/2D). `out` must be distinct from `A`. In 1D only the active
+components `A[2]`/`A[3]` choose the common FFT scale; `A[1]` must still be
+finite. Changing this scale can change floating-point rounding.
 """
 function curl!(
     out::Tuple{Vararg{AbstractArray{T,D},3}},
@@ -258,7 +260,13 @@ function curl!(
     gain = sum(d -> maximum(abs, g.kvec[d]), 1:D)
     isfinite(gain) ||
         throw(ArgumentError("curl spectral multiplier bound is not representable as $T"))
-    input_scale = _fft_input_scale(A, 3, g, gain)
+    if D == 1
+        all(isfinite, A[1]) ||
+            throw(ArgumentError("spectral operator input values must be finite"))
+        input_scale = _fft_input_scale((A[2], A[3]), 2, g, gain)
+    else
+        input_scale = _fft_input_scale(A, 3, g, gain)
+    end
     o = one(T)
     m = -one(T)
     if D == 1

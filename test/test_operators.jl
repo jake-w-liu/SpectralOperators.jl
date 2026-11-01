@@ -564,6 +564,50 @@ end
     @test mixed == mixed_before
 end
 
+@testset "D1 curl scale uses active components and retains validation" begin
+    for (T, ek, ebig, esmall) in ((Float32, 60, 120, -100), (Float64, 500, 1000, -800))
+        g = FourierGrid((4,), (ldexp(T(2π), -ek),))
+        k = ldexp(one(T), ek)
+        @test g.kvec[1][2] == k
+        large, small = ldexp(one(T), ebig), ldexp(one(T), esmall)
+        A = (large .* T[1, -1, 1, -1], zeros(T, 4), small .* T[0, 1, 0, -1])
+        before = copy.(A)
+        @test all(all(isfinite, component) for component in A)
+        @test all(all(x -> iszero(x) || abs(x) >= floatmin(T), component) for component in A)
+        # Admission controls use the unchanged scale helper, not an FFT oracle.
+        old_scale = SpectralOperators._fft_input_scale(A, 3, g, k)
+        active_scale = SpectralOperators._fft_input_scale((A[2], A[3]), 2, g, k)
+        @test old_scale > one(T) && isone(active_scale)
+        @test iszero(small / old_scale)
+        out = ntuple(_ -> zeros(T, 4), 3)
+        @test curl!(out, A, g) === out
+        # Independent quarter-wave derivative: -D_x A3, normal in both widths.
+        amplitude = ldexp(one(T), esmall + ek)
+        @test amplitude >= floatmin(T)
+        expected = -amplitude .* T[1, 0, -1, 0]
+        @test maximum(abs, out[2]) >= amplitude / T(2)
+        @test maximum(abs, out[2] .- expected) <= T(64) * eps(T) * amplitude
+        @test all(iszero, out[1]) && all(iszero, out[3])
+        control = ntuple(_ -> zeros(T, 4), 3)
+        curl!(control, (zeros(T, 4), A[2], A[3]), g)
+        @test out == control
+        @test A == before
+        for bad in (T(NaN), T(Inf), -T(Inf))
+            poisoned = (fill(bad, 4), A[2], A[3])
+            input_before = copy.(poisoned)
+            sentinel = ntuple(_ -> fill(T(7), 4), 3)
+            @test_throws ArgumentError curl!(sentinel, poisoned, g)
+            @test all(all(==(T(7)), component) for component in sentinel)
+            @test isequal(poisoned, input_before)
+        end
+        @test_throws ArgumentError curl!((A[1], control[2], control[3]), A, g)
+        # A huge *active component* still selects the common scale and must
+        # reject lost tiny active input, even when its own derivative is zero.
+        active_wide = (zeros(T, 4), fill(large, 4), A[3])
+        @test_throws ArgumentError curl!(out, active_wide, g)
+    end
+end
+
 @testset "project_divfree! preserves absent-axis components" begin
     Random.seed!(4)
     for T in (Float64, Float32)
@@ -634,6 +678,11 @@ end
     @test (@allocated deriv!(out, f, g, 1)) == 0
     @test (@allocated gradient!(grad, f, g)) == 0
     @test (@allocated curl!(B, A, g)) == 0
+    g1 = FourierGrid((16,), (T(2π),))
+    A1 = ntuple(_ -> copy(fx), 3)
+    B1 = ntuple(_ -> zeros(T, 16), 3)
+    curl!(B1, A1, g1)
+    @test (@allocated curl!(B1, A1, g1)) == 0
     @test (@allocated divergence!(divB, B, g)) == 0
     @test (@allocated laplacian!(lap, f, g)) == 0
     filt .= f
