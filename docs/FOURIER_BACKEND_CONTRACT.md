@@ -64,6 +64,9 @@ before the multiplier writes any output.
 
 | Function | Operation and additional arguments |
 | --- | --- |
+| `_ik_store_value(hat, ik)` | Scalar row `hat * ik`; defines every `_apply_ik_store!` element |
+| `_ik_scaled_value(sign, hat, ik)` | Scalar row `(sign * hat) * ik`, multiplied left to right; `sign::T`; defines every `_apply_ik_store_scaled!` element |
+| `_ik_accum_value(acc, sign, hat, ik)` | Scalar row `acc + ((sign * hat) * ik)`; defines every `_apply_ik_accum!` element, with `acc = dst[I]` |
 | `_apply_ik_store!(dst, hat, ikj, j)` | `dst[I] = hat[I] * ikj[I[j]]`; `1 ≤ j ≤ D` |
 | `_apply_ik_store_scaled!(dst, hat, ikj, j, s)` | `s * hat[I] * ikj[I[j]]` in that order; `s::T` |
 | `_apply_ik_accum!(dst, hat, ikj, j, s)` | Adds the preceding ordered product |
@@ -72,6 +75,12 @@ before the multiplier writes any output.
 | `_project_fourier_modes!(hats, kvec)` | In-place projection of a tuple of three complex arrays for `1 ≤ D ≤ 3`; absent-axis components and the derivative-zero nullspace remain unchanged |
 | `_apply_exp_filter_multiplier!(hat, midx, n, alphaT, p)` | In-place exponential mode-ratio filter; `alphaT::T ≥ 0` (Inf allowed), `p::Integer ≥ 1`; DC retained exactly; positive infinite strength removes every non-DC mode, including underflowed mode powers |
 | `_apply_two_thirds_mask!(hat, midx, n)` | Retains precisely `3abs(midx[d][I[d]]) < n[d]` on every axis |
+
+The three derivative kernels evaluate their scalar row at `hat[I]` and
+`ik = ikj[I[j]]`. Rows take `Complex{T}` values and a real `sign::T`, return
+`Complex{T}` and touch no storage. Their `*` and `+` are Julia's `Complex{T}`
+operations: the real sign is not promoted to complex, `hat * ik` keeps the full
+complex product, and a zero `acc` is still added, which can turn `-0` into `+0`.
 
 Each mutating kernel returns its destination (the original tuple for projection).
 Exact object identity between output and input is safe for the derivative and
@@ -88,6 +97,15 @@ input validation, range scaling and FFT normalization. For Laplacian, call
 squared-wavenumber bound or throws `ArgumentError` if that bound would overflow.
 Projection normalizes both the derivative wavenumber and complex field components
 before forming its dot product, preserving the serial extreme-range behavior.
+
+`_d1_curl_terms()` returns the 1D curl's per-output term records
+`(input, axis, sign)` as a three-tuple. The first output is empty; the second and
+third are `((input = 3, axis = 1, sign = -1),)` and
+`((input = 2, axis = 1, sign = 1),)`. These are the component-2 negative and
+component-3 positive records of the single full curl geometry table, not a second
+copy. Serial D1 `curl!` takes its two terms and signs from this descriptor and
+keeps its existing active-component input scaling. Any other consumer's scaling
+policy is its own.
 
 ## Range and conversion primitives
 

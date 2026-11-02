@@ -7,6 +7,15 @@ const _CURL_COMPONENT_TERMS = (
     ((input = 2, axis = 1, sign = 1), (input = 1, axis = 2, sign = -1)),
 )
 
+# D1 keeps the y negative term and z positive term of the same geometry owner.
+@inline _d1_curl_terms() = ((), (_CURL_COMPONENT_TERMS[2][2],), (_CURL_COMPONENT_TERMS[3][1],))
+
+# Scalar rows retain the array kernels' product association and zero additions.
+@inline _ik_store_value(hat::Complex{T}, ik::Complex{T}) where {T} = hat * ik
+@inline _ik_scaled_value(sign::T, hat::Complex{T}, ik::Complex{T}) where {T} = sign * hat * ik
+@inline _ik_accum_value(acc::Complex{T}, sign::T, hat::Complex{T}, ik::Complex{T}) where {T} =
+    acc + sign * hat * ik
+
 """
     _apply_ik_store!(dst, hat, ikj, j)
 
@@ -22,7 +31,7 @@ See `docs/FOURIER_BACKEND_CONTRACT.md` for metadata and alias preconditions.
     _require_mode_input(dst, fhat)
     _require_mode_axis(dst, ikj, j)
     @inbounds for I in CartesianIndices(dst)
-        dst[I] = fhat[I] * ikj[I[j]]
+        dst[I] = _ik_store_value(fhat[I], ikj[I[j]])
     end
     return dst
 end
@@ -42,7 +51,7 @@ Store the ordered product `s * hat[I] * ikj[I[j]]` on global logical indices.
     _require_mode_input(dst, fhat)
     _require_mode_axis(dst, ikj, j)
     @inbounds for I in CartesianIndices(dst)
-        dst[I] = s * fhat[I] * ikj[I[j]]
+        dst[I] = _ik_scaled_value(s, fhat[I], ikj[I[j]])
     end
     return dst
 end
@@ -63,7 +72,7 @@ Accumulate the ordered product `s * hat[I] * ikj[I[j]]`.
     _require_mode_input(acc, fhat)
     _require_mode_axis(acc, ikj, j)
     @inbounds for I in CartesianIndices(acc)
-        acc[I] += s * fhat[I] * ikj[I[j]]
+        acc[I] = _ik_accum_value(acc[I], s, fhat[I], ikj[I[j]])
     end
     return acc
 end
@@ -283,6 +292,8 @@ function curl!(
     yp, ym = _CURL_COMPONENT_TERMS[2]
     zp, zm = _CURL_COMPONENT_TERMS[3]
     if D == 1
+        d1 = _d1_curl_terms()
+        ym, zp = d1[2][1], d1[3][1]
         all(isfinite, A[1]) || throw(ArgumentError("spectral operator input values must be finite"))
         input_scale = _fft_input_scale((A[zp.input], A[ym.input]), 2, g, gain)
     else
@@ -293,11 +304,11 @@ function curl!(
     if D == 1
         fill!(out[1], zero(T))
         fill!(g.abuf, zero(Complex{T}))
-        _accum_deriv!(g.abuf, A[ym.input], g, ym.axis, m, input_scale)
+        _accum_deriv!(g.abuf, A[ym.input], g, ym.axis, ifelse(ym.sign == 1, o, m), input_scale)
         g.iplan * g.abuf
         _store_fft_output!(out[2], g.abuf, input_scale)
         fill!(g.abuf, zero(Complex{T}))
-        _accum_deriv!(g.abuf, A[zp.input], g, zp.axis, o, input_scale)
+        _accum_deriv!(g.abuf, A[zp.input], g, zp.axis, ifelse(zp.sign == 1, o, m), input_scale)
         g.iplan * g.abuf
         _store_fft_output!(out[3], g.abuf, input_scale)
         return out

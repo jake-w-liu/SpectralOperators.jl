@@ -11,6 +11,7 @@ export SBP1D, sbp_deriv!, sbp_deriv, sbp_deriv_x!, FourierDerivYWorkspace, fouri
 
 # Supported qualified backend contract; see docs/FOURIER_BACKEND_CONTRACT.md.
 public _fourier_metadata, _apply_ik_store!, _apply_ik_store_scaled!, _apply_ik_accum!
+public _ik_store_value, _ik_scaled_value, _ik_accum_value, _d1_curl_terms
 public _curl_component_store!, _apply_laplacian_multiplier!, _laplacian_gain
 public _project_fourier_modes!, _apply_exp_filter_multiplier!, _apply_two_thirds_mask!
 public _fft_safe_magnitude, _fft_input_scale, _copy_fft_input!, _store_fft_output!

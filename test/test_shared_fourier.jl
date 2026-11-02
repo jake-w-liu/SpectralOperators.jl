@@ -372,3 +372,107 @@ end
         @test all(I -> I == CartesianIndex(1, 1, 1) || iszero(modes[I]), CartesianIndices(modes))
     end
 end
+
+# Signed zeros, the least subnormal, ordinary values and large magnitudes, whose
+# products also reach overflow, underflow and invalid operations.
+function scalar_row_values(::Type{T}) where {T}
+    parts = T[
+        zero(T),
+        -zero(T),
+        nextfloat(zero(T)),
+        -nextfloat(zero(T)),
+        one(T),
+        -T(3)/T(7),
+        T(1.5),
+        floatmax(T)/4,
+        -floatmax(T)/4,
+    ]
+    return vec([Complex{T}(re, im) for re in parts, im in parts])
+end
+# Every combination whose scalar row is not bitwise its source expression.
+function scalar_row_mismatches(::Type{T}) where {T}
+    zs = scalar_row_values(T)
+    store = Tuple{Complex{T},Complex{T}}[]
+    scaled = Tuple{T,Complex{T},Complex{T}}[]
+    accum = Tuple{Complex{T},T,Complex{T},Complex{T}}[]
+    for h in zs, k in zs
+        SpectralOperators._ik_store_value(h, k) === h * k || push!(store, (h, k))
+        for s in (one(T), -one(T))
+            SpectralOperators._ik_scaled_value(s, h, k) === s * h * k || push!(scaled, (s, h, k))
+            for a in zs
+                SpectralOperators._ik_accum_value(a, s, h, k) === a + s * h * k ||
+                    push!(accum, (a, s, h, k))
+            end
+        end
+    end
+    return (; store, scaled, accum)
+end
+# Forward modes of a real field from the grid's own scratch and plan.
+function scalar_row_grid_modes(g::FourierGrid{D,T}, c::Int) where {D,T}
+    field = [T(sin(c * sum(Tuple(I))) + cos(prod(Tuple(I)) / c)) for I in CartesianIndices(g.n)]
+    SpectralOperators._copy_fft_input!(g.cbuf, field, one(T))
+    g.plan * g.cbuf
+    return copy(g.cbuf)
+end
+# Global logical indices of kernel elements that are not bitwise their scalar
+# row. The NaN sentinel exposes any element a store kernel leaves unwritten.
+function scalar_row_kernel_mismatches(hat, acc0, ikj, j, s::T) where {T}
+    sentinel = Complex{T}(T(NaN), T(NaN))
+    stored = fill!(similar(hat), sentinel)
+    scaled = fill!(similar(hat), sentinel)
+    accumulated = copy(acc0)
+    SpectralOperators._apply_ik_store!(stored, hat, ikj, j)
+    SpectralOperators._apply_ik_store_scaled!(scaled, hat, ikj, j, s)
+    SpectralOperators._apply_ik_accum!(accumulated, hat, ikj, j, s)
+    indices = CartesianIndices(hat)
+    bad = (store = eltype(indices)[], scaled = eltype(indices)[], accum = eltype(indices)[])
+    for I in indices
+        h, k = hat[I], ikj[I[j]]
+        stored[I] === SpectralOperators._ik_store_value(h, k) || push!(bad.store, I)
+        scaled[I] === SpectralOperators._ik_scaled_value(s, h, k) || push!(bad.scaled, I)
+        accumulated[I] === SpectralOperators._ik_accum_value(acc0[I], s, h, k) ||
+            push!(bad.accum, I)
+    end
+    return bad
+end
+
+@testset "Scalar Fourier mode rows define the derivative kernels" begin
+    for T in (Float32, Float64)
+        mismatches = scalar_row_mismatches(T)
+        @test isempty(mismatches.store)
+        @test isempty(mismatches.scaled)
+        @test isempty(mismatches.accum)
+    end
+    for T in (Float32, Float64), n in ((7,), (8,), (1,), (6, 5), (4, 3, 2))
+        D = length(n)
+        g = FourierGrid(n, ntuple(d -> T(2π + d / 3), D))
+        synthetic = ntuple(
+            c -> [
+                Complex{T}(T(sin(c * sum(Tuple(I)))), T(cos(c * prod(Tuple(I))))) for
+                I in CartesianIndices(n)
+            ],
+            2,
+        )
+        transformed = (scalar_row_grid_modes(g, 1), scalar_row_grid_modes(g, 2))
+        ranges = ntuple(d -> max(1, n[d]÷2):n[d], D)
+        for (hat, acc0) in (transformed, synthetic), j = 1:D, s in (one(T), -one(T), T(-2))
+            @test all(isempty, scalar_row_kernel_mismatches(hat, acc0, g.ik[j], j, s))
+            # Permuted tiles over the existing ranges pass global logical indices I[j].
+            tiles = map(a -> fourier_tile(a, ranges; permuted = true), (hat, acc0))
+            @test all(isempty, scalar_row_kernel_mismatches(tiles..., g.ik[j], j, s))
+        end
+    end
+end
+
+@testset "D1 curl descriptor and public scalar rows" begin
+    SO = SpectralOperators
+    terms = SO._d1_curl_terms()
+    @test terms === ((), ((input = 3, axis = 1, sign = -1),), ((input = 2, axis = 1, sign = 1),))
+    @test terms[2][1] === SO._CURL_COMPONENT_TERMS[2][2]
+    @test terms[3][1] === SO._CURL_COMPONENT_TERMS[3][1]
+    SpectralOperators._d1_curl_terms()
+    @test (@allocated SpectralOperators._d1_curl_terms()) == 0
+    for name in (:_ik_store_value, :_ik_scaled_value, :_ik_accum_value, :_d1_curl_terms)
+        @test Base.ispublic(SpectralOperators, name)
+    end
+end
