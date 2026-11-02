@@ -109,3 +109,20 @@ end
         @test_throws MethodError SOFloor._laplacian_input_floor(T, length(f))
     end
 end
+
+@testset "Scaled curl rejects unsupported manual grids before callbacks" begin
+    for T in (Float16, BigFloat, Int)
+        g, calls = scaled_floor_unsupported_grid(T)
+        A = ntuple(_ -> ones(T, g.n), 3)
+        before, input_before = scaled_floor_grid_values(g), map(copy, A)
+        consume = (_, _) -> error("unsupported grid reached scaled curl callback")
+        if T <: AbstractFloat
+            @test_throws ArgumentError SOFloor.foreach_curl_scaled_term!(consume, A, g, 1)
+        else
+            @test_throws MethodError SOFloor.foreach_curl_scaled_term!(consume, A, g, 1)
+        end
+        @test calls[] == 0
+        @test isequal(scaled_floor_grid_values(g), before)
+        @test isequal(A, input_before)
+    end
+end

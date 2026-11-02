@@ -202,3 +202,68 @@ per shifted axis term. This is distinct from FFTW error and cancellation in the
 complete real-space result. High-precision DFT tests check the FFT/source-scale
 behavior; these operations do not promise exact Fourier coefficients or a
 relative error bound on every arbitrarily canceled output.
+
+## Borrowed scaled curl terms
+
+`foreach_curl_scaled_term!(consume, A, g, component)` is a qualified, nonexported
+serial API for Float32/64 Fourier grids in dimensions 1–3. It requires nearest
+rounding and gradual underflow throughout the call. `A` is a three-tuple of real
+arrays matching the grid type, shape and one-based axes. The integer component
+index must be in `1:3`; it is checked before conversion to `Int`.
+
+The canonical curl geometry supplies these terms, in positive-then-negative order:
+
+| Component | Positive term | Negative term |
+| --- | --- | --- |
+| 1 | ∂₂ A₃ | ∂₃ A₂ |
+| 2 | ∂₃ A₁ | ∂₁ A₃ |
+| 3 | ∂₁ A₂ | ∂₂ A₁ |
+
+Absent axes are omitted. For each present axis the existing `deriv_scaled_data!`
+owner produces a receipt and immediately calls `consume(term, data)`. `term`
+contains integer fields `component,input,axis,sign`, with sign +1 or -1. `data`
+has the borrowed fields described above and `ordinary=false`. Present axes of
+length one/two emit their exact zero receipt without a transform; even Nyquist
+uses the centered first-derivative convention. Return value is the number of
+callbacks, 0–2, independent of callback return values. D1 counts are 0/1/1, D2
+counts are 1/1/2 and D3 counts are 2/2/2. A count is geometric, never a nonzero
+certificate. No physical floating-point curl is formed or summed by this API.
+
+All three inputs, including inactive A₁ in D1, pass finite/type/shape/axis and
+scaled-input storage checks before any scratch write, transform or callback.
+Only `g.cbuf` is mutated; it must be disjoint from all inputs and Fourier
+metadata. Readonly input sharing and aliases to genuinely unused scratch remain
+valid. Storage checks use `Base.mightalias`; callers must use arrays whose
+overlap those interfaces report and constructor-compatible internally disjoint
+grid storage. Initial admission errors leave scratch unchanged and invoke no
+callback. Later derivative rescaling/FFT failures can follow earlier callbacks
+and can leave scratch modified. Such errors and callback exceptions propagate
+without retries or replacement results.
+
+Consume each receipt before returning: the next term overwrites its values.
+Callbacks must not mutate inputs, metadata or arithmetic context, reenter an
+operator on this grid, retain borrowed values, or share it concurrently. SO does
+not roll back arbitrary callback side effects. Transactional callers must keep
+effects private and defer physical publication until all required components
+and final finite conversions succeed. A component argument permits reuse of one
+private accumulator across three calls; this API supplies no accumulator or
+solver publication policy.
+
+Keep each term's input scale and binary exponent through the complete downstream
+expression. Restoring terms to the field type before multiplying a coefficient
+can lose both overflow and underflow recovery. The result is a sum of represented
+normalized derivative channels, with the same input-loss, FFT conditioning and
+source-scale error qualifications as the borrowed directional owner. It does
+not promise exact DFT coefficients or relative accuracy under arbitrary
+cancellation. Separate directional transforms may round differently from
+ordinary `curl!`; a nonfinite-only ordinary fallback cannot detect an already
+underflowed channel. Downstream map selection therefore requires its own review.
+
+Ordinary `curl!` shares only the component/axis descriptor and retains its
+existing transform, multiplier and store order. For generic active axes, three
+new component calls require 4/8/12 total forward/inverse transforms in D1/D2/D3,
+compared with ordinary curl's 4/6/6, plus repeated all-input preflight. This is
+additional source-recovery work, not a speed claim. The standalone implementation
+and essential controls in `test/test_scaled_sources.jl` and
+`test/test_operators.jl` require exact-revision remote checks; no downstream
+consumer or new release is implied.

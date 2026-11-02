@@ -339,6 +339,55 @@ function deriv_scaled_data!(g::FourierGrid, f::AbstractArray, axis::Integer)
 end
 
 """
+    foreach_curl_scaled_term!(consume, A, g, component)
+
+Visit the signed directional terms of one curl component without restoring a
+physical floating-point curl. Before any scratch write, FFT or callback, validate
+all three inputs, including inactive components. This qualified serial API
+requires Float32/64, D=1–3 and nearest/gradual arithmetic.
+
+For each present axis, call `consume(term, data)` in positive-then-negative order.
+`term` contains integer `component,input,axis,sign`; `data` is the existing borrowed
+`deriv_scaled_data!` receipt. Consume it before returning; the next term overwrites
+its values. Absent axes are skipped, while present null axes still emit zero data.
+Return the number of callbacks (0–2), not a nonzero-source certificate.
+
+The caller must not mutate inputs, metadata or arithmetic context, reenter this
+grid, or retain borrowed values. Callback errors propagate; SO does not roll back
+callback effects. Transactional callers must keep effects private and publish
+only after all required components succeed. Normalized FFT/source accuracy has
+the same qualified limits as `deriv_scaled_data!`; ordinary `curl!` is unchanged.
+See `docs/FOURIER_BACKEND_CONTRACT.md` for storage and failure contracts.
+"""
+function foreach_curl_scaled_term!(
+    consume,
+    A::Tuple{Vararg{AbstractArray,3}},
+    g::FourierGrid{D,T},
+    component::Integer,
+) where {D,T}
+    _require_fftw_float(T, :foreach_curl_scaled_term!)
+    1 <= D <= 3 || throw(ArgumentError("scaled curl supports spatial dimension 1–3; got $D"))
+    1 <= component <= 3 || throw(ArgumentError("curl component $component out of range 1:3"))
+    rounding(T) === RoundNearest && !get_zero_subnormals() ||
+        throw(ArgumentError("scaled curl requires nearest rounding and gradual underflow"))
+    for field in A
+        _require_scaled_input(field, g)
+    end
+    for field in A
+        _scaled_input_magnitude(field)
+    end
+    c = Int(component)
+    count = 0
+    for term in _CURL_COMPONENT_TERMS[c]
+        term.axis > D && continue
+        data = deriv_scaled_data!(g, A[term.input], term.axis)
+        consume((; component = c, input = term.input, axis = term.axis, sign = term.sign), data)
+        count += 1
+    end
+    return count
+end
+
+"""
     nyquist_scaled_data!(g, f, axis)
 
 Return borrowed normalized data for the real positive Nyquist projector channel.

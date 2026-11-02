@@ -2,7 +2,7 @@
 
 ## Version 0.1.9 source candidate
 
-Updated 2026-11-01. The unreleased source version is 0.1.9; the latest registered
+Updated 2026-11-02. The unreleased source version is 0.1.9; the latest registered
 release remains 0.1.8. D1 `curl!` now selects shared FFT headroom from the two
 components it differentiates. All three components retain finite/type/shape/alias
 validation; active rescaling loss still rejects. Changed scale selection can
@@ -14,10 +14,21 @@ Supported user-field sharing, unused scratch and read-only metadata inputs remai
 allowed. The [backend contract](FOURIER_BACKEND_CONTRACT.md#serial-real-field-storage)
 owns the per-operation roles.
 
+The standalone qualified
+[`foreach_curl_scaled_term!`](FOURIER_BACKEND_CONTRACT.md#borrowed-scaled-curl-terms)
+API is source implemented over the existing borrowed directional owner. It
+shares ordinary curl's geometry descriptor, validates all three inputs before
+any transform/callback, and leaves final conversion and publication to callers.
+Ordinary curl retains its transform/multiplier/store order. The represented-term
+map has additional transforms and qualified FFT accuracy; no HPIC consumer,
+measured speed, runtime acceptance or publication is claimed.
+
 | Stage | Status |
 | --- | --- |
 | Canonical D1 selector and current contract | Source implemented; root source/caller review complete |
 | Canonical serial storage preflight | Source implemented at all nine boundaries; runtime pending |
+| Standalone scaled curl-term API and shared geometry | Source implemented; exact source inverse checked; remote checks pending |
+| Scaled curl mapping/range/admission/callback controls | Added in existing test files; unrun locally |
 | Essential operator, alias and allocation controls | Added to the existing test file; unrun locally |
 | D1 selector source preservation | Root reproduced 28 checks; old numerical bodies and assertions retained |
 | Storage source preservation | Root and independent reviewer reproduced 31 source-text checks; numerical bodies and old assertions retained |

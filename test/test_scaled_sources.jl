@@ -383,3 +383,173 @@ end
 end
 
 @info "Scaled-source error receipts" scaled_error_receipts
+
+@testset "Scaled curl terms match independent component derivatives" begin
+    setprecision(BigFloat, 8192) do
+        # Independent Cartesian curl expression; do not use SO's geometry table.
+        positive = ((3, 2), (1, 3), (2, 1))
+        negative = ((2, 3), (3, 1), (1, 2))
+        for T in (Float32, Float64), D = 1:3, edge in (4, 1, 2)
+            n = ntuple(d -> d == D ? edge : 4, D)
+            g, calls = scaled_counting_grid(FourierGrid(n, ntuple(d -> T(2pi) * T(d), D)))
+            A = ntuple(3) do c
+                [
+                    T(mod(sum(d -> (c + d) * I[d], 1:D), 7) - 3) / T(8) for
+                    I in CartesianIndices(g.cbuf)
+                ]
+            end
+            saved = map(copy, A)
+            for c = 1:3
+                expected, actual = zeros(BigFloat, n), zeros(BigFloat, n)
+                scale = BigFloat(0)
+                terms = Tuple{Int,Int,Int}[]
+                transforms = 0
+                for (sign, (input, axis)) in ((1, positive[c]), (-1, negative[c]))
+                    axis > D && continue
+                    reference, bound = scaled_reference(g, A[input], :derivative, axis)
+                    expected .+= sign .* reference
+                    scale += bound
+                    push!(terms, (input, axis, sign))
+                    transforms += g.n[axis] > 2 ? 2 : 0
+                end
+                visited = Tuple{Int,Int,Int}[]
+                calls[] = 0
+                count = SOScaled.foreach_curl_scaled_term!(A, g, c) do term, data
+                    @test term.component == c
+                    @test data.values === g.cbuf
+                    @test !data.ordinary && all(isfinite, data.values)
+                    push!(visited, (term.input, term.axis, term.sign))
+                    actual .+= term.sign .* scaled_restore(data)
+                end
+                @test count == length(terms)
+                @test visited == terms
+                @test calls[] == transforms
+                @test maximum(abs, actual .- expected) <= 2048eps(T) * scale
+            end
+            @test isequal(A, saved)
+        end
+    end
+end
+
+@testset "Scaled curl terms retain coefficient-rescued range" begin
+    setprecision(BigFloat, 8192) do
+        for T in (Float32, Float64), overflow in (false, true)
+            a = T === Float32 ? 100 : 600
+            g = FourierGrid((4,), (overflow ? T(2pi) / T(4) : ldexp(T(2pi), a),))
+            amplitude = overflow ? T(3) * (floatmax(T) / T(8)) : ldexp(one(T), -a)
+            dt = overflow ? T(1) / T(16) : ldexp(one(T), a)
+            A = (zeros(T, 4), zeros(T, 4), amplitude .* T[0, 1, 0, -1])
+            reference, scale = scaled_reference(g, A[3], :derivative, 1)
+            complete = zeros(BigFloat, 4)
+            count = SOScaled.foreach_curl_scaled_term!(A, g, 2) do term, data
+                complete .+= (BigFloat(dt) * term.sign) .* scaled_restore(data)
+            end
+            @test count == 1
+            @test maximum(abs, complete .+ BigFloat(dt) .* reference) <=
+                  2048eps(T) * BigFloat(dt) * scale
+            @test all(isfinite, T.(complete))
+            @test any(x -> abs(x) >= floatmin(T), T.(complete))
+            ordinary = ntuple(_ -> zeros(T, 4), 3)
+            curl!(ordinary, A, g)
+            if overflow
+                @test maximum(abs, reference) > BigFloat(floatmax(T))
+                @test any(!isfinite, ordinary[2])
+            else
+                @test all(iszero, ordinary[2])
+            end
+        end
+    end
+end
+
+@testset "Scaled curl complete preflight and callback ownership" begin
+    for T in (Float32, Float64)
+        g, calls = scaled_counting_grid(FourierGrid((4,), (T(2pi),)))
+        A = (T[0, 1, 0, -1], T[1, 0, -1, 0], T[0, -1, 0, 1])
+        fill!(g.cbuf, complex(T(7), T(3)))
+        before = map(copy, (g.cbuf, g.tbuf, g.abuf, g.sbuf))
+        callbacks = Ref(0)
+        consume = (_, _) -> (callbacks[] += 1)
+        alias = @view reinterpret(T, g.cbuf)[1:4]
+        for c in (1, 3),
+            bad in
+            (fill(T(NaN), 4), zeros(T, 3), zeros(T === Float32 ? Float64 : Float32, 4), alias)
+
+            invalid = ntuple(d -> d == c ? bad : A[d], 3)
+            if length(bad) == 3
+                @test_throws DimensionMismatch SOScaled.foreach_curl_scaled_term!(
+                    consume,
+                    invalid,
+                    g,
+                    2,
+                )
+            else
+                @test_throws ArgumentError SOScaled.foreach_curl_scaled_term!(
+                    consume,
+                    invalid,
+                    g,
+                    2,
+                )
+            end
+            @test calls[] == 0 && callbacks[] == 0
+            @test isequal((g.cbuf, g.tbuf, g.abuf, g.sbuf), before)
+        end
+        for c in (0, 4, big(typemax(Int)) + 1)
+            @test_throws ArgumentError SOScaled.foreach_curl_scaled_term!(consume, A, g, c)
+            @test calls[] == 0 && callbacks[] == 0
+            @test isequal((g.cbuf, g.tbuf, g.abuf, g.sbuf), before)
+        end
+        @test SOScaled.foreach_curl_scaled_term!(consume, A, g, 1) == 0
+        @test calls[] == 0 && callbacks[] == 0
+        @test isequal(g.cbuf, before[1])
+        @test SOScaled.foreach_curl_scaled_term!(consume, A, g, BigInt(2)) == 1
+        @test calls[] == 2 && callbacks[] == 1
+
+        # Only cbuf is written; readonly metadata and genuinely unused scratch
+        # can be input storage, including for a differentiated component.
+        fill!(g.tbuf, complex(T(1), T(2)))
+        unused = reshape(view(reinterpret(T, vec(g.tbuf)), 1:4), g.n)
+        sharing = (A[1], g.kfull[1], unused)
+        saved = map(copy, sharing)
+        @test SOScaled.foreach_curl_scaled_term!(consume, sharing, g, 2) == 1
+        @test SOScaled.foreach_curl_scaled_term!(consume, sharing, g, 3) == 1
+        @test isequal(sharing, saved)
+
+        previous = get_zero_subnormals()
+        try
+            set_zero_subnormals(true)
+            calls[], callbacks[] = 0, 0
+            saved = copy(g.cbuf)
+            if get_zero_subnormals()
+                @test_throws ArgumentError SOScaled.foreach_curl_scaled_term!(consume, A, g, 2)
+                @test calls[] == 0 && callbacks[] == 0
+                @test isequal(g.cbuf, saved)
+            end
+        finally
+            set_zero_subnormals(previous)
+        end
+
+        full, calls = scaled_counting_grid(FourierGrid((4, 4, 4), ntuple(_ -> T(2pi), 3)))
+        fields = ntuple(c -> fill(T(c), full.n), 3)
+        fields[3][2, 1, 1] = T(4)
+        saved = map(copy, fields)
+        before = copy(full.cbuf)
+        poisoned = (fields[1], fill(T(Inf), full.n), fields[3])
+        callbacks[] = 0
+        @test_throws ArgumentError SOScaled.foreach_curl_scaled_term!(consume, poisoned, full, 1)
+        @test calls[] == 0 && callbacks[] == 0
+        @test isequal(full.cbuf, before)
+        failure = ErrorException("scaled curl callback failure")
+        caught = try
+            SOScaled.foreach_curl_scaled_term!(fields, full, 1) do _, data
+                callbacks[] += 1
+                @test data.values === full.cbuf
+                throw(failure)
+            end
+        catch err
+            err
+        end
+        @test caught === failure
+        @test calls[] == 2 && callbacks[] == 1
+        @test isequal(fields, saved)
+    end
+end

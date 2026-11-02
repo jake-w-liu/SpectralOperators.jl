@@ -1,5 +1,12 @@
 # differential_operators.jl — periodic Fourier ∂/∇/∇·/∇×/∇².
 
+# Canonical curl geometry: positive then negative directional term per output.
+const _CURL_COMPONENT_TERMS = (
+    ((input = 3, axis = 2, sign = 1), (input = 2, axis = 3, sign = -1)),
+    ((input = 1, axis = 3, sign = 1), (input = 3, axis = 1, sign = -1)),
+    ((input = 2, axis = 1, sign = 1), (input = 1, axis = 2, sign = -1)),
+)
+
 """
     _apply_ik_store!(dst, hat, ikj, j)
 
@@ -272,10 +279,13 @@ function curl!(
     gain = sum(d -> maximum(abs, g.kvec[d]), 1:D)
     isfinite(gain) ||
         throw(ArgumentError("curl spectral multiplier bound is not representable as $T"))
+    xp, xm = _CURL_COMPONENT_TERMS[1]
+    yp, ym = _CURL_COMPONENT_TERMS[2]
+    zp, zm = _CURL_COMPONENT_TERMS[3]
     if D == 1
         all(isfinite, A[1]) ||
             throw(ArgumentError("spectral operator input values must be finite"))
-        input_scale = _fft_input_scale((A[2], A[3]), 2, g, gain)
+        input_scale = _fft_input_scale((A[zp.input], A[ym.input]), 2, g, gain)
     else
         input_scale = _fft_input_scale(A, 3, g, gain)
     end
@@ -284,25 +294,25 @@ function curl!(
     if D == 1
         fill!(out[1], zero(T))
         fill!(g.abuf, zero(Complex{T}))
-        _accum_deriv!(g.abuf, A[3], g, 1, m, input_scale)
+        _accum_deriv!(g.abuf, A[ym.input], g, ym.axis, m, input_scale)
         g.iplan * g.abuf
         _store_fft_output!(out[2], g.abuf, input_scale)
         fill!(g.abuf, zero(Complex{T}))
-        _accum_deriv!(g.abuf, A[2], g, 1, o, input_scale)
+        _accum_deriv!(g.abuf, A[zp.input], g, zp.axis, o, input_scale)
         g.iplan * g.abuf
         _store_fft_output!(out[3], g.abuf, input_scale)
         return out
     elseif D == 2
-        _forward_field!(g.cbuf, A[3], g, input_scale)
-        _apply_ik_store!(g.tbuf, g.cbuf, g.ik[2], 2)
+        _forward_field!(g.cbuf, A[xp.input], g, input_scale)
+        _apply_ik_store!(g.tbuf, g.cbuf, g.ik[xp.axis], xp.axis)
         g.iplan * g.tbuf
         _store_fft_output!(out[1], g.tbuf, input_scale)
-        _apply_ik_store_scaled!(g.tbuf, g.cbuf, g.ik[1], 1, m)
+        _apply_ik_store_scaled!(g.tbuf, g.cbuf, g.ik[ym.axis], ym.axis, m)
         g.iplan * g.tbuf
         _store_fft_output!(out[2], g.tbuf, input_scale)
         fill!(g.abuf, zero(Complex{T}))
-        _accum_deriv!(g.abuf, A[2], g, 1, o, input_scale)
-        _accum_deriv!(g.abuf, A[1], g, 2, m, input_scale)
+        _accum_deriv!(g.abuf, A[zp.input], g, zp.axis, o, input_scale)
+        _accum_deriv!(g.abuf, A[zm.input], g, zm.axis, m, input_scale)
         g.iplan * g.abuf
         _store_fft_output!(out[3], g.abuf, input_scale)
         return out
@@ -310,19 +320,44 @@ function curl!(
     _forward_field!(g.cbuf, A[1], g, input_scale)
     _forward_field!(g.tbuf, A[2], g, input_scale)
     _forward_field!(g.abuf, A[3], g, input_scale)
+    hats = (g.cbuf, g.tbuf, g.abuf)
 
     # (curl A)_x = ∂_y A_z - ∂_z A_y
-    _curl_component_store!(g.sbuf, g.abuf, g.ik[2], 2, g.tbuf, g.ik[3], 3)
+    _curl_component_store!(
+        g.sbuf,
+        hats[xp.input],
+        g.ik[xp.axis],
+        xp.axis,
+        hats[xm.input],
+        g.ik[xm.axis],
+        xm.axis,
+    )
     g.iplan * g.sbuf
     _store_fft_output!(out[1], g.sbuf, input_scale)
 
     # (curl A)_y = ∂_z A_x - ∂_x A_z
-    _curl_component_store!(g.sbuf, g.cbuf, g.ik[3], 3, g.abuf, g.ik[1], 1)
+    _curl_component_store!(
+        g.sbuf,
+        hats[yp.input],
+        g.ik[yp.axis],
+        yp.axis,
+        hats[ym.input],
+        g.ik[ym.axis],
+        ym.axis,
+    )
     g.iplan * g.sbuf
     _store_fft_output!(out[2], g.sbuf, input_scale)
 
     # (curl A)_z = ∂_x A_y - ∂_y A_x
-    _curl_component_store!(g.sbuf, g.tbuf, g.ik[1], 1, g.cbuf, g.ik[2], 2)
+    _curl_component_store!(
+        g.sbuf,
+        hats[zp.input],
+        g.ik[zp.axis],
+        zp.axis,
+        hats[zm.input],
+        g.ik[zm.axis],
+        zm.axis,
+    )
     g.iplan * g.sbuf
     _store_fft_output!(out[3], g.sbuf, input_scale)
     return out

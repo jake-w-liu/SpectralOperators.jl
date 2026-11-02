@@ -16,6 +16,7 @@ public _project_fourier_modes!, _apply_exp_filter_multiplier!, _apply_two_thirds
 public _fft_safe_magnitude, _fft_input_scale, _copy_fft_input!, _store_fft_output!
 public laplacian_scaled_data!, deriv_scaled_data!, nyquist_scaled_data!
 public deriv_laplacian_scaled_data!
+public foreach_curl_scaled_term!
 
 include("periodic_fourier.jl")
 include("differential_operators.jl")

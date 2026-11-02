@@ -95,6 +95,18 @@ These checks run before scratch or output writes. See the
 [storage contract](docs/FOURIER_BACKEND_CONTRACT.md#serial-real-field-storage).
 This storage repair is source implemented; exact-revision remote checks are pending.
 
+The qualified `SpectralOperators.foreach_curl_scaled_term!(consume, A, g, component)`
+visits one component's signed normalized directional channels without restoring a
+physical floating-point curl. It validates all three inputs before any FFT or
+callback and returns a geometric callback count of 0–2. Each result is borrowed;
+consume it immediately. Callers retain external scales through their complete
+expression and own final conversion and transactional publication. This is a
+separate represented-channel map with qualified FFT accuracy and additional
+transforms; ordinary `curl!` keeps its schedule. See the
+[scaled curl contract](docs/FOURIER_BACKEND_CONTRACT.md#borrowed-scaled-curl-terms).
+The standalone API is source implemented; remote checks and downstream adoption
+remain pending.
+
 ## Divergence-Free Projection
 
 ```julia
