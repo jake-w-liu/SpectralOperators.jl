@@ -283,8 +283,7 @@ function curl!(
     yp, ym = _CURL_COMPONENT_TERMS[2]
     zp, zm = _CURL_COMPONENT_TERMS[3]
     if D == 1
-        all(isfinite, A[1]) ||
-            throw(ArgumentError("spectral operator input values must be finite"))
+        all(isfinite, A[1]) || throw(ArgumentError("spectral operator input values must be finite"))
         input_scale = _fft_input_scale((A[zp.input], A[ym.input]), 2, g, gain)
     else
         input_scale = _fft_input_scale(A, 3, g, gain)

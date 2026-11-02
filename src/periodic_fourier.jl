@@ -175,21 +175,37 @@ end
     return nothing
 end
 
-# Real fields may share user storage, but must remain live across every scratch
-# write in the complete operation. Only actual outputs may not alias metadata.
-@inline function _require_real_fft_storage(
-    inputs::Tuple,
-    outputs::Tuple,
-    scratch::Tuple,
-    g::FourierGrid,
-)
-    for fields in (inputs, outputs), field in fields, buffer in scratch
+@inline function _require_real_fft_scratch(fields::F, scratch::S) where {F<:Tuple,S<:Tuple}
+    for field in fields, buffer in scratch
         Base.mightalias(field, buffer) &&
             throw(ArgumentError("spectral operator fields must not alias mutated FFT scratch"))
     end
-    for out in outputs, metadata in (g.midx, g.kfull, g.ik, g.kvec), axis in metadata
+    return nothing
+end
+
+@inline function _require_real_fft_metadata(out, metadata::M) where {M<:Tuple}
+    for axis in metadata
         Base.mightalias(out, axis) &&
             throw(ArgumentError("spectral operator outputs must not alias Fourier metadata"))
+    end
+    return nothing
+end
+
+# Real fields must remain live across every scratch write. Traverse each tuple
+# family separately, retaining the input/output and metadata check order.
+@inline function _require_real_fft_storage(
+    inputs::I,
+    outputs::O,
+    scratch::S,
+    g::G,
+) where {I<:Tuple,O<:Tuple,S<:Tuple,G<:FourierGrid}
+    _require_real_fft_scratch(inputs, scratch)
+    _require_real_fft_scratch(outputs, scratch)
+    for out in outputs
+        _require_real_fft_metadata(out, g.midx)
+        _require_real_fft_metadata(out, g.kfull)
+        _require_real_fft_metadata(out, g.ik)
+        _require_real_fft_metadata(out, g.kvec)
     end
     return nothing
 end

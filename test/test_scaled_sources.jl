@@ -393,10 +393,7 @@ end
             n = ntuple(d -> d == D ? edge : 4, D)
             g, calls = scaled_counting_grid(FourierGrid(n, ntuple(d -> T(2pi) * T(d), D)))
             A = ntuple(3) do c
-                [
-                    T(mod(sum(d -> (c + d) * I[d], 1:D), 7) - 3) / T(8) for
-                    I in CartesianIndices(g.cbuf)
-                ]
+                [T(mod(sum(d -> (c + d) * I[d], 1:D), 7) - 3) / T(8) for I in CartesianIndices(g.cbuf)]
             end
             saved = map(copy, A)
             for c = 1:3

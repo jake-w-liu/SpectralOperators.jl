@@ -642,17 +642,7 @@ end
 
 @testset "serial FFT storage roles reject before mutation" begin
     reject_unchanged = function (call, fields, g)
-        storage = (
-            fields...,
-            g.cbuf,
-            g.tbuf,
-            g.abuf,
-            g.sbuf,
-            g.midx...,
-            g.kfull...,
-            g.ik...,
-            g.kvec...,
-        )
+        storage = (fields..., g.cbuf, g.tbuf, g.abuf, g.sbuf, g.midx..., g.kfull..., g.ik..., g.kvec...)
         before = copy.(storage)
         @test_throws ArgumentError call()
         @test isequal(storage, before)
@@ -660,8 +650,7 @@ end
     for T in (Float32, Float64)
         for D = 1:3
             g = FourierGrid(ntuple(_ -> 4, D), ntuple(_ -> T(2π), D))
-            realview = buffer ->
-                reshape(view(reinterpret(T, vec(buffer)), 1:length(g.cbuf)), g.n)
+            realview = buffer -> reshape(view(reinterpret(T, vec(buffer)), 1:length(g.cbuf)), g.n)
             f, out = ones(T, g.n), zeros(T, g.n)
             grad = ntuple(_ -> zeros(T, g.n), D)
             A = ntuple(_ -> ones(T, g.n), 3)

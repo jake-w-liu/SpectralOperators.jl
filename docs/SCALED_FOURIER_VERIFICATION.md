@@ -3,7 +3,15 @@
 ## Version 0.1.9 source candidate
 
 Updated 2026-11-02. The unreleased source version is 0.1.9; the latest registered
-release remains 0.1.8. D1 `curl!` now selects shared FFT headroom from the two
+release remains 0.1.8. The latest checked parent, `8bf69f4`, failed
+[CI run 41378026613](https://github.com/jake-w-liu/SpectralOperators.jl/actions/runs/41378026613):
+all four Julia jobs record 27,894 passes and 45 failed existing zero-allocation
+checks; formatting also fails. The repair candidate keeps every alias check,
+error and numerical expression, traverses tuple families separately and applies
+the formatter artifact produced by that run. It must pass the unchanged remote
+suite before main publication; source review alone is not acceptance.
+
+D1 `curl!` now selects shared FFT headroom from the two
 components it differentiates. All three components retain finite/type/shape/alias
 validation; active rescaling loss still rejects. Changed scale selection can
 change rounded outputs. D2/3 numerical formulas, shared backend primitives and
@@ -26,13 +34,13 @@ measured speed, runtime acceptance or publication is claimed.
 | Stage | Status |
 | --- | --- |
 | Canonical D1 selector and current contract | Source implemented; root source/caller review complete |
-| Canonical serial storage preflight | Source implemented at all nine boundaries; runtime pending |
-| Standalone scaled curl-term API and shared geometry | Source implemented; exact source inverse checked; remote checks pending |
+| Canonical serial storage preflight | Source implemented at all nine boundaries; parent CI exposes allocation failures; repair candidate under remote review |
+| Standalone scaled curl-term API and shared geometry | Source implemented; exact source inverse checked; parent full-suite allocation/format acceptance fails |
 | Scaled curl mapping/range/admission/callback controls | Added in existing test files; unrun locally |
 | Essential operator, alias and allocation controls | Added to the existing test file; unrun locally |
 | D1 selector source preservation | Root reproduced 28 checks; old numerical bodies and assertions retained |
 | Storage source preservation | Root and independent reviewer reproduced 31 source-text checks; numerical bodies and old assertions retained |
-| Minimum/latest Julia on Ubuntu/macOS, Aqua and formatter | Exact-revision GitHub acceptance pending |
+| Minimum/latest Julia on Ubuntu/macOS, Aqua and formatter | Parent run above fails; repair must clear every unchanged gate |
 | Registration, tag and release | Pending tested exact source; no 0.1.9 publication yet |
 | HPIC consumer accuracy/compiler/cost | Pending; strict pressure/Faraday assertions remain |
 
