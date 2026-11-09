@@ -1,55 +1,49 @@
 # Scaled Fourier verification and release record
 
-## Version 0.1.9 source candidate
+## Version 0.1.9
 
-Updated 2026-11-02. The unreleased source version is 0.1.9; the latest registered
-release remains 0.1.8. The latest checked parent, `8bf69f4`, failed
-[CI run 41378026613](https://github.com/jake-w-liu/SpectralOperators.jl/actions/runs/41378026613):
-all four Julia jobs record 27,894 passes and 45 failed existing zero-allocation
-checks; formatting also fails. The repair candidate keeps every alias check,
-error and numerical expression, traverses tuple families separately and applies
-the formatter artifact produced by that run. It must pass the unchanged remote
-suite before main publication; source review alone is not acceptance.
+Verified on 2026-11-09. Version 0.1.9 is registered in
+[Julia General](https://github.com/JuliaRegistries/General/pull/174587),
+annotated-tagged and [released](https://github.com/jake-w-liu/SpectralOperators.jl/releases/tag/v0.1.9)
+from commit `76898aff7ce4c7309848905e3147c0f2d63c2c89`, package tree
+`34b2dd609fdb6c74cba95ff89ca533a5db87b9e5`. The registered tree, annotated
+tag target and complete release notes were read back and agree.
 
-D1 `curl!` now selects shared FFT headroom from the two
-components it differentiates. All three components retain finite/type/shape/alias
-validation; active rescaling loss still rejects. Changed scale selection can
-change rounded outputs. D2/3 numerical formulas, shared backend primitives and
-transform order remain. Serial real-field operators also now share a role-aware
-storage preflight: participating inputs and outputs must not overlap scratch the
-operation mutates; actual writable outputs must not overlap read-only metadata.
-Supported user-field sharing, unused scratch and read-only metadata inputs remain
-allowed. The [backend contract](FOURIER_BACKEND_CONTRACT.md#serial-real-field-storage)
-owns the per-operation roles.
+Both the [candidate run](https://github.com/jake-w-liu/SpectralOperators.jl/actions/runs/41503547790)
+and [main run](https://github.com/jake-w-liu/SpectralOperators.jl/actions/runs/41554467419)
+pass all five jobs. Root read all ten actual job logs and checked their exact
+source revision. Each of the four Julia jobs in each run passes 28,145 assertions:
+Julia 1.12.7 and 1.13.3 on Ubuntu and macOS. The formatter jobs also pass.
+The existing zero-allocation, numerical, ownership, alias and Aqua gates remain.
 
-The standalone qualified
-[`foreach_curl_scaled_term!`](FOURIER_BACKEND_CONTRACT.md#borrowed-scaled-curl-terms)
-API is source implemented over the existing borrowed directional owner. It
-shares ordinary curl's geometry descriptor, validates all three inputs before
-any transform/callback, and leaves final conversion and publication to callers.
-Ordinary curl retains its transform/multiplier/store order. The represented-term
-map has additional transforms and qualified FFT accuracy; no HPIC consumer,
-measured speed, runtime acceptance or publication is claimed.
+This release includes the D1 active-component headroom selector and serial
+real-field storage preflight. Inactive D1 input still passes finite/type/shape/
+alias checks; active rescaling loss still rejects. Supported user sharing,
+unused scratch and read-only metadata inputs retain their documented behavior.
+Changed headroom can change rounded outputs; no cross-version bitwise identity
+is promised.
 
-| Stage | Status |
+The qualified backend API includes scalar complex product/accumulation rows,
+the canonical D1 curl descriptor and borrowed scaled curl terms. Existing CPU
+mode wrappers consume the scalar rows; curl geometry has one owner. The
+[backend contract](FOURIER_BACKEND_CONTRACT.md) specifies product order,
+normalization, borrowed lifetimes and failure/publication responsibilities.
+
+| Gate | Evidence |
 | --- | --- |
-| Canonical D1 selector and current contract | Source implemented; root source/caller review complete |
-| Canonical serial storage preflight | Source implemented at all nine boundaries; parent CI exposes allocation failures; repair candidate under remote review |
-| Standalone scaled curl-term API and shared geometry | Source implemented; exact source inverse checked; parent full-suite allocation/format acceptance fails |
-| Scaled curl mapping/range/admission/callback controls | Added in existing test files; unrun locally |
-| Essential operator, alias and allocation controls | Added to the existing test file; unrun locally |
-| D1 selector source preservation | Root reproduced 28 checks; old numerical bodies and assertions retained |
-| Storage source preservation | Root and independent reviewer reproduced 31 source-text checks; numerical bodies and old assertions retained |
-| Minimum/latest Julia on Ubuntu/macOS, Aqua and formatter | Parent run above fails; repair must clear every unchanged gate |
-| Registration, tag and release | Pending tested exact source; no 0.1.9 publication yet |
-| HPIC consumer accuracy/compiler/cost | Pending; strict pressure/Faraday assertions remain |
+| Minimum/latest Julia on Ubuntu/macOS | Four successful jobs and 28,145 assertions per job in each exact-source run |
+| Numerical, alias, allocation and Aqua | Existing complete package suite in those jobs |
+| Formatting | JuliaFormatter 2.14.0 jobs pass |
+| General registration, annotated tag and release | Exact commit/tree and complete notes read back |
+| CUDA/device execution and comparative performance | Not established by these package checks |
+| Downstream complete simulation/scientific/resource acceptance | Remains the consumer's responsibility |
 
-All Julia execution runs on GitHub or suitable remote hardware. Source review
-establishes the bounded ownership change, not a numerical result, measured speed
-or cause of the historical HPIC pressure/Faraday failures. The scratch-alias audit
-verified the missing entry ownership and subsequent write conflicts from source;
-its predicted returned FFT values remain unexecuted. The guard candidate needs
-exact-revision remote checks. The verified 0.1.8 history below remains unchanged.
+The earlier `8bf69f4` run41378026613 failed 45 existing zero-allocation checks
+per Julia job and formatting; these failed results remain historical evidence.
+The tuple-family specialization and formatter repair were retained in the
+released source. Historical failed candidates do not describe the final release.
+All runtime verification above ran on GitHub; no local Julia workload was used
+for this release completion.
 
 ## Version 0.1.8
 
@@ -102,6 +96,7 @@ This page records checked releases and tests; it does not maintain a live queue.
 | [0.1.6](https://github.com/jake-w-liu/SpectralOperators.jl/releases/tag/v0.1.6) | Full-Laplacian Nyquist energy channel |
 | [0.1.7](https://github.com/jake-w-liu/SpectralOperators.jl/releases/tag/v0.1.7) | Borrowed normalized source channels and canonical floor, zero-buffer and Cartesian store repairs |
 | [0.1.8](https://github.com/jake-w-liu/SpectralOperators.jl/releases/tag/v0.1.8) | Certified directional axis-null source conditioning before the FFT |
+| [0.1.9](https://github.com/jake-w-liu/SpectralOperators.jl/releases/tag/v0.1.9) | Qualified scalar mode/curl APIs, D1 active headroom and serial storage ownership |
 
 The 0.1.7 [General request](https://github.com/JuliaRegistries/General/pull/173877)
 merged on 2026-10-28 UTC. The annotated tag dereferences to the registered commit;
